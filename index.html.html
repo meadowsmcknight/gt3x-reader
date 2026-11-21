@@ -1,0 +1,3047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-44CuGGjgAFR00fCq/of1LdNvoYrMQXT/cg+GNTn7uTA=' 'sha256-D4zF7LepGXVm6yzF9iqbwVKzOtPkMUrHX3i0QI+zwK8='; style-src 'self' 'sha256-wH6dEKjuXUnZtkgoaTIQLcLSXfSHzqmPKqsc4lntgc8='; img-src 'self' blob:; worker-src 'self' blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gt3x browser reader</title>
+<!--
+gt3x browser reader. Licensed under the Apache License, Version 2.0: see the LICENSE file beside this page.
+Notices: the NOTICE file beside this page. Its text follows.
+
+gt3x browser reader
+Copyright 2026 the gt3x browser reader authors.
+Licensed under the Apache License, Version 2.0.
+
+This product ports small code fragments (record checksum, 12-bit activity
+unpacking, SSP floating-point decoding) from ActiGraph's MIT-licensed format
+documentation (actigraph/GT3X-File-Format @ d4aa795a3d06cc8b22b4e3df645b597cdeee6d92
+and actigraph/NHANES-GT3X-File-Format @ 2fcafc68eac1cdc64255480cbd0d9900230cf377).
+Ported regions are marked "Ported from ActiGraph MIT docs" in the source.
+Those fragments are covered by the following notice:
+
+The MIT License (MIT)
+
+Copyright (c) 2014 ActiGraph
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-->
+<style>:root { color-scheme: light; }
+body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 72rem; padding: 1rem; color: #1a1a1a; background: #ffffff; line-height: 1.45; }
+h1, h2, h3 { color: #1a1a1a; }
+.notice { border-left: 4px solid #8a5a00; padding: 0.5rem 0.75rem; background: #fff8e6; color: #1a1a1a; }
+.hint { color: #4d4d4d; }
+button, input, select { font: inherit; }
+button { padding: 0.4rem 0.9rem; border: 2px solid #1d4f91; background: #1d4f91; color: #ffffff; border-radius: 4px; cursor: pointer; }
+button:disabled { background: #e6e6e6; color: #4d4d4d; border-color: #767676; cursor: not-allowed; }
+:focus-visible { outline: 3px solid #b3006b; outline-offset: 2px; }
+table { border-collapse: collapse; margin: 0.5rem 0; }
+th, td { border: 1px solid #767676; padding: 0.25rem 0.5rem; text-align: left; vertical-align: top; color: #1a1a1a; }
+th { background: #f0f0f0; }
+caption { text-align: left; font-weight: bold; color: #1a1a1a; }
+code { background: #f0f0f0; color: #1a1a1a; padding: 0 0.2rem; }
+fieldset { border: 1px solid #767676; }
+.caption { font-weight: bold; color: #1a1a1a; }
+.err { color: #a30000; }
+.pre { white-space: pre-wrap; }
+.chart-wrap { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+#s58-chart svg { max-width: 100%; height: auto; border: 1px solid #767676; background: #ffffff; }
+progress { width: 20rem; max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body data-s58state="idle">
+<header>
+<h1>gt3x browser reader</h1>
+<p class="notice" id="s58-wording">Unofficial file converter for .gt3x files. Not affiliated with ActiGraph or Ametris. It does not measure, diagnose, or assess health, sleep, or activity, and is not a medical device. Coverage shows where the file has data; it is not wear time, sleep, or activity. Check outputs before research use.</p>
+<p>Everything runs on this computer: the file is read inside this page and nothing is sent anywhere.</p>
+</header>
+<main>
+<section aria-labelledby="s58-h-open">
+<h2 id="s58-h-open">1. Open a file</h2>
+<p><label for="s58-file">Choose a .gt3x file</label> <input type="file" id="s58-file"></p>
+<p class="hint">File names can identify people. The outputs never contain the file name; they have neutral names.</p>
+<div id="s58-status" role="status" aria-live="polite">No file chosen.</div>
+<p><label for="s58-progress">Progress</label> <progress id="s58-progress" max="1" value="0"></progress></p>
+</section>
+<section id="s58-error" hidden aria-labelledby="s58-h-error">
+<h2 id="s58-h-error">This file could not be read</h2>
+<p>Error kind: <code id="s58-error-kind"></code></p>
+<p id="s58-error-message"></p>
+<p>No export is offered for this file.</p>
+</section>
+<section id="s58-report" hidden aria-labelledby="s58-h-report">
+<h2 id="s58-h-report">2. Coverage and gap report</h2>
+<div id="s58-report-body"></div>
+</section>
+<section id="s58-chart-section" hidden aria-labelledby="s58-h-chart">
+<h2 id="s58-h-chart">3. Raw and filled data over time</h2>
+<div class="chart-wrap">
+<div id="s58-chart"></div>
+<div id="s58-chart-alt"></div>
+</div>
+<div id="s58-caption-slot"></div>
+</section>
+<section id="s58-export" hidden aria-labelledby="s58-h-export">
+<h2 id="s58-h-export">4. Export</h2>
+<p>The default export is the file's samples as decoded, with corrected samples flagged. Nothing is filled unless you choose a fill below.</p>
+<fieldset>
+<legend>Fill missing time (off by default)</legend>
+<div><input type="radio" name="s58-fill" id="s58-fill-none" value="none" checked> <label for="s58-fill-none">No fill (default)</label></div>
+<div><input type="radio" name="s58-fill" id="s58-fill-carry" value="carry_last"> <label for="s58-fill-carry">Repeat the last sample in missing time (rows flagged fill_locf)</label></div>
+<div><input type="radio" name="s58-fill" id="s58-fill-zero" value="zero"> <label for="s58-fill-zero">Write zeros in missing time (rows flagged fill_zero)</label></div>
+</fieldset>
+<p id="s58-fill-help" hidden></p>
+<p><button type="button" id="s58-preview" disabled>Show the chosen fill on the chart</button></p>
+<p><input type="checkbox" id="s58-gzip"> <label for="s58-gzip">Compress the parts with gzip (used only when this browser cannot save straight to disk)</label></p>
+<p id="s58-estimate"></p>
+<p><button type="button" id="s58-export-btn">Export CSV</button> <button type="button" id="s58-sidecar-btn" disabled>Save the sidecar JSON</button></p>
+<div id="s58-saves" hidden>
+<p class="hint">This browser cannot save straight to disk, so each part has its own Save button. Tap them in turn: the next part is made after each tap. Join the parts in part-number order.</p>
+<ol id="s58-save-list"></ol>
+</div>
+</section>
+<section id="s58-privacy" hidden aria-labelledby="s58-h-privacy">
+<h2 id="s58-h-privacy">5. Found in this file (shown here only, never exported)</h2>
+<div id="s58-privacy-body"></div>
+</section>
+</main>
+<footer>
+<p class="hint">Apache-2.0. See the NOTICE and LICENSE files that come with this page.</p>
+</footer>
+<script type="text/plain" id="s58-worker">// gt3x browser reader: worker bundle (S5.8). Apache-2.0; see the NOTICE and LICENSE files beside this page.
+// The parser_s5e modules below are carried unchanged except their import and export statement lines
+// (BUILD_S5_8.md); each module is wrapped in its own function scope.
+const __s58m = {};
+__s58m['crc32.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE crc32.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// CRC-32 (IEEE 802.3, reflected polynomial 0xEDB88320), written from the
+// polynomial definition. Used to check zip entries ourselves, because
+// DecompressionStream performs no integrity check of its own.
+// S5.3: adds an incremental form (crc32Update) for streaming input.
+
+const TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+// Running CRC: start with crc32Update(0, chunk), feed the previous result back in.
+function crc32Update(crc, bytes, start = 0, end = bytes.length) {
+  let c = (crc ^ 0xFFFFFFFF) >>> 0;
+  for (let i = start; i < end; i++) c = TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function crc32(bytes) { return crc32Update(0, bytes); }
+
+// S58-END-MODULE crc32.js
+return Object.assign(__s58x, { crc32Update, crc32 });
+})();
+__s58m['decode.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE decode.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// Low-level decoders for .gt3x payloads. Browser- and Node-compatible.
+
+// --- Ported from ActiGraph MIT docs (GT3X-File-Format README, "Sample C# Checksum Code") ---
+// 1's complement of the XOR over the 8 header bytes and the payload.
+function recordChecksum(bytes, start, payloadSize) {
+  let c = 0;
+  const end = start + 8 + payloadSize;
+  for (let i = start; i < end; i++) c ^= bytes[i];
+  return (~c) & 0xFF;
+}
+// --- end ported region ---
+
+function xorBytes(bytes, start, end) {
+  let c = 0;
+  for (let i = start; i < end; i++) c ^= bytes[i];
+  return c & 0xFF;
+}
+
+// --- Ported from ActiGraph MIT docs (Activity.md / activity.bin.md ParseAcceleration) ---
+// 12-bit two's complement values, MSB first, samples stored Y, X, Z.
+// Returns an array of [x, y, z] integer triples; a trailing partial sample
+// (e.g. the unused last nibble when the count is odd) is ignored.
+function unpack12(bytes, start = 0, end = bytes.length) {
+  const nBits = (end - start) * 8;
+  const nSamples = Math.floor(nBits / 36);
+  const out = new Array(nSamples);
+  let nib = 0; // nibble index from start
+  const nibbleAt = (k) => {
+    const byte = bytes[start + (k >> 1)];
+    return (k & 1) === 0 ? (byte >> 4) & 0xF : byte & 0xF;
+  };
+  for (let s = 0; s < nSamples; s++) {
+    const v = [0, 0, 0];
+    for (let axis = 0; axis < 3; axis++) {
+      let shifter = (nibbleAt(nib) << 8) | (nibbleAt(nib + 1) << 4) | nibbleAt(nib + 2);
+      nib += 3;
+      if (shifter & 0x800) shifter -= 0x1000; // sign extension
+      v[axis] = shifter;
+    }
+    out[s] = [v[1], v[0], v[2]]; // file order Y, X, Z -> output X, Y, Z
+  }
+  return out;
+}
+// --- end ported region ---
+
+// ACTIVITY2: little-endian int16 triples in X, Y, Z order.
+function unpackInt16(bytes, start = 0, end = bytes.length) {
+  const n = Math.floor((end - start) / 6);
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const out = new Array(n);
+  for (let s = 0; s < n; s++) {
+    const o = start + s * 6;
+    out[s] = [dv.getInt16(o, true), dv.getInt16(o + 2, true), dv.getInt16(o + 4, true)];
+  }
+  return out;
+}
+
+// --- Ported from ActiGraph MIT docs (Parameters.md SspCodec.Decode) ---
+// Returns { value: float64, exact: {num: BigInt, den: BigInt} | null }.
+function sspDecode(u32) {
+  u32 = u32 >>> 0;
+  if (u32 === 0x007FFFFF) return { value: Number.MAX_VALUE, exact: null };
+  if (u32 === 0x00800000) return { value: -Number.MAX_VALUE, exact: null };
+  let exponent = (u32 >>> 24) & 0xFF;
+  if (exponent & 0x80) exponent -= 0x100;
+  let significand = u32 & 0x00FFFFFF;
+  if (significand & 0x00800000) significand -= 0x01000000;
+  const value = (significand / 8388608.0) * Math.pow(2.0, exponent);
+  // exact rational significand * 2^(exponent - 23)
+  let num = BigInt(significand); let den = 1n;
+  const e2 = exponent - 23;
+  if (e2 >= 0) num <<= BigInt(e2); else den <<= BigInt(-e2);
+  const g = gcd(num < 0n ? -num : num, den);
+  if (g > 1n) { num /= g; den /= g; }
+  return { value, exact: { num, den } };
+}
+// --- end ported region ---
+
+function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a === 0n ? 1n : a; }
+
+// Lux (old format lux.bin): u16 LE per second. <20 -> 0, 0xFFFF -> 0,
+// otherwise min(v * scale, cap), rounded half away from zero to an integer.
+function luxParams(serial) {
+  const p = (serial || '').toUpperCase();
+  if (p.startsWith('MRA')) return { scale: 3.25, cap: 6000, device: 'ActiSleep+' };
+  if (p.startsWith('NEO')) return { scale: 1.25, cap: 2500, device: 'GT3X+' };
+  return null;
+}
+function decodeLux(bytes, params) {
+  const out = [];
+  for (let o = 0; o + 1 < bytes.length; o += 2) {
+    const v = bytes[o] | (bytes[o + 1] << 8);
+    let lux;
+    if (v === 0xFFFF || v < 20) lux = 0;
+    else {
+      const scaled = Math.min(v * params.scale, params.cap);
+      lux = Math.sign(scaled) * Math.floor(Math.abs(scaled) + 0.5);
+    }
+    out.push(lux);
+  }
+  return out;
+}
+
+function hex(bytes, start = 0, end = bytes.length) {
+  const parts = [];
+  for (let i = start; i < end; i++) parts.push(bytes[i].toString(16).toUpperCase().padStart(2, '0'));
+  return parts.join(' ');
+}
+function parseHex(s) {
+  const clean = s.replace(/[^0-9a-fA-F]/g, '');
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
+  return out;
+}
+
+// S58-END-MODULE decode.js
+return Object.assign(__s58x, { recordChecksum, xorBytes, unpack12, unpackInt16, sspDecode, gcd, luxParams, decodeLux, hex, parseHex });
+})();
+__s58m['time.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE time.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// Exact time arithmetic. Instants are exact rationals of seconds since the
+// 1970-01-01T00:00:00 clock origin, held as BigInt {num, den}. Formatting uses
+// civil-calendar field arithmetic only; no Date local-time APIs, and no zone
+// is appended.
+
+const TICKS_AT_UNIX_EPOCH = 621355968000000000n;
+const TICKS_PER_SECOND = 10000000n;
+
+function floorDiv(a, b) { const q = a / b; return (a % b !== 0n && ((a < 0n) !== (b < 0n))) ? q - 1n : q; }
+
+// Days since 1970-01-01 -> [year, month, day] (proleptic Gregorian).
+function civilFromDays(z) {
+  z = BigInt(z) + 719468n;
+  const era = floorDiv(z, 146097n);
+  const doe = z - era * 146097n;
+  const yoe = (doe - doe / 1460n + doe / 36524n - doe / 146096n) / 365n;
+  let y = yoe + era * 400n;
+  const doy = doe - (365n * yoe + yoe / 4n - yoe / 100n);
+  const mp = (5n * doy + 2n) / 153n;
+  const d = doy - (153n * mp + 2n) / 5n + 1n;
+  const m = mp < 10n ? mp + 3n : mp - 9n;
+  if (m <= 2n) y += 1n;
+  return [Number(y), Number(m), Number(d)];
+}
+
+const p2 = (n) => String(n).padStart(2, '0');
+
+// Whole seconds -> "YYYY-MM-DDTHH:MM:SS"
+function formatSeconds(sec) {
+  sec = BigInt(sec);
+  const days = floorDiv(sec, 86400n);
+  const rem = sec - days * 86400n;
+  const [y, m, d] = civilFromDays(days);
+  const hh = rem / 3600n, mm = (rem % 3600n) / 60n, ss = rem % 60n;
+  return `${String(y).padStart(4, '0')}-${p2(m)}-${p2(d)}T${p2(hh)}:${p2(mm)}:${p2(ss)}`;
+}
+
+// Exact rational -> integer microseconds, round half up (toward +infinity on ties).
+function toMicrosHalfUp(num, den) {
+  return floorDiv(2n * num * 1000000n + den, 2n * den);
+}
+
+// Integer microseconds -> "YYYY-MM-DDTHH:MM:SS.ffffff"
+function formatMicros(us) {
+  const sec = floorDiv(us, 1000000n);
+  const frac = us - sec * 1000000n;
+  return `${formatSeconds(sec)}.${String(frac).padStart(6, '0')}`;
+}
+
+// Rational instant -> formatted with round-half-up to microseconds (C4).
+function formatInstant(num, den) { return formatMicros(toMicrosHalfUp(num, den)); }
+
+// .NET ticks (BigInt) -> {unix: BigInt seconds (floor), remTicks: BigInt}
+function ticksToUnix(ticks) {
+  const t = BigInt(ticks) - TICKS_AT_UNIX_EPOCH;
+  const unix = floorDiv(t, TICKS_PER_SECOND);
+  return { unix, remTicks: t - unix * TICKS_PER_SECOND };
+}
+
+// .NET ticks -> formatted string, truncated (floor) to microseconds (FIXTURE_SPEC F-SPEC-TICKS).
+// A zero tick value means "not set".
+function formatTicks(ticks, zeroText = null) {
+  const t = BigInt(ticks);
+  if (t === 0n) return zeroText;
+  const us = floorDiv(t - TICKS_AT_UNIX_EPOCH, 10n);
+  return formatMicros(us);
+}
+
+// Parses a decimal string (e.g. "30", "30.0", "29.5") to an exact rational.
+function parseDecimal(s) {
+  const m = /^\s*([+-]?)(\d+)(?:\.(\d*))?\s*$/.exec(String(s));
+  if (!m) return null;
+  const frac = m[3] || '';
+  let num = BigInt(m[2] + frac); let den = 10n ** BigInt(frac.length);
+  if (m[1] === '-') num = -num;
+  let a = num < 0n ? -num : num, b = den;
+  while (b) { [a, b] = [b, a % b]; }
+  if (a > 1n) { num /= a; den /= a; }
+  return { num, den };
+}
+
+// "HH:MM:SS" offset with optional sign -> seconds (Number) or null.
+function parseUtcOffset(s) {
+  const m = /^\s*([+-]?)(\d{1,2}):(\d{2})(?::(\d{2}))?\s*$/.exec(String(s || ''));
+  if (!m) return null;
+  const v = Number(m[2]) * 3600 + Number(m[3]) * 60 + Number(m[4] || 0);
+  return m[1] === '-' ? -v : v;
+}
+
+// S58-END-MODULE time.js
+return Object.assign(__s58x, { TICKS_AT_UNIX_EPOCH, TICKS_PER_SECOND, civilFromDays, formatSeconds, toMicrosHalfUp, formatMicros, formatInstant, ticksToUnix, formatTicks, parseDecimal, parseUtcOffset });
+})();
+__s58m['slice.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE slice.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// S5.4c: fixed internal slice size. Every input handed to Gt3xParser.push,
+// ZipStream.push and LogScanner.push is processed in slices of at most this
+// many bytes, so the parser's working memory does not grow with the host's
+// chunk size. The output does not depend on the slice size.
+const DEFAULT_SLICE_BYTES = 65536;
+
+// testSliceBytes is a TEST-ONLY construction option (see README.md and
+// CHANGES_S5_4C.md). Leaving it out gives exactly DEFAULT_SLICE_BYTES.
+function resolveSliceBytes(testSliceBytes) {
+  if (testSliceBytes === undefined) return DEFAULT_SLICE_BYTES;
+  if (!Number.isInteger(testSliceBytes) || testSliceBytes < 1) {
+    throw new Error('testSliceBytes (test-only option) must be an integer >= 1');
+  }
+  return testSliceBytes;
+}
+
+// S58-END-MODULE slice.js
+return Object.assign(__s58x, { DEFAULT_SLICE_BYTES, resolveSliceBytes });
+})();
+__s58m['zip.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE zip.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// Streaming zip container reader (PKWARE APPNOTE structure), S5.3.
+// Input arrives in chunks of any size. Entries are read in file order from
+// their local headers; entries written with a data descriptor (flag bit 3)
+// end where a descriptor whose compressed-size field equals the number of
+// bytes read so far is found. Stored (0) and deflate (8) entries only;
+// deflate goes through DecompressionStream('deflate-raw'). ZIP64 and
+// encrypted entries are refused; nothing is ever decrypted. The central
+// directory and end record are checked at the end of input.
+
+const { crc32Update } = __s58m['crc32.js'];
+const { DEFAULT_SLICE_BYTES } = __s58m['slice.js'];
+
+class ContainerError extends Error {
+  constructor(kind, message) { super(message); this.kind = kind; }
+}
+
+const MSG_NOT_ZIP = 'not a zip / not a .gt3x file (the input does not start with a zip local header or a gzip header)';
+
+const SIG_LOCAL = 0x04034b50;
+const SIG_CENTRAL = 0x02014b50;
+const SIG_EOCD = 0x06054b50;
+const SIG_Z64_LOCATOR = 0x07064b50;
+const SIG_Z64_EOCD = 0x06064b50;
+const SIG_DD = 0x08074b50;
+
+function u16(b, o) { return b[o] | (b[o + 1] << 8); }
+function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+
+function hasZip64Extra(b, start, len) {
+  let p = start; const end = start + len;
+  while (p + 4 <= end) {
+    const id = u16(b, p); const sz = u16(b, p + 2);
+    if (id === 0x0001) return true;
+    p += 4 + sz;
+  }
+  return false;
+}
+
+// A DecompressionStream wrapper with an ordered, awaited consumer.
+class Inflater {
+  constructor(format, consumer) {
+    this.ds = new DecompressionStream(format);
+    this.writer = this.ds.writable.getWriter();
+    this.writer.closed.catch(() => {});
+    this.writer.ready.catch(() => {});
+    this.error = null;
+    const reader = this.ds.readable.getReader();
+    this.pump = (async () => {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        await consumer(value);
+      }
+    })().catch((e) => { if (!this.error) this.error = e; reader.cancel().catch(() => {}); });
+  }
+  async write(bytes) {
+    if (this.error) throw this.error;
+    await this.writer.write(bytes).catch((e) => { if (!this.error) this.error = e; });
+    if (this.error) throw this.error;
+  }
+  async close() {
+    if (!this.error) await this.writer.close().catch((e) => { if (!this.error) this.error = e; });
+    else await this.writer.abort().catch(() => {});
+    await this.pump;
+    if (this.error) throw this.error;
+  }
+}
+
+// sink.memberStart(entry) returns null (skip the entry) or
+// { data(bytes) (sync or async), end() }.
+// S5.4c: each pushed chunk is processed in slices of at most sliceBytes, so the
+// internal buffer holds one slice plus a small carry (a partial local header or
+// the last 15 bytes searched for a data descriptor), and the decompressor is
+// given at most one slice (+ carry) per write. Bytes are copied into the
+// internal buffer; no view of the caller's chunk is kept.
+class ZipStream {
+  constructor(sink, sliceBytes = DEFAULT_SLICE_BYTES) {
+    this.sink = sink;
+    this.sliceBytes = sliceBytes;
+    this.buf = new Uint8Array(1 << 16);
+    this.len = 0;
+    this.pos = 0;
+    this.offset = 0; // absolute input offset of buf[0]
+    this.state = 'sig';
+    this.members = [];
+    this.cur = null;
+    this.tail = [];
+    this.tailLen = 0;
+  }
+
+  _append(chunk) {
+    if (this.pos > 0) {
+      this.buf.copyWithin(0, this.pos, this.len);
+      this.len -= this.pos; this.offset += this.pos; this.pos = 0;
+    }
+    if (this.len + chunk.length > this.buf.length) {
+      let cap = this.buf.length;
+      while (cap < this.len + chunk.length) cap *= 2;
+      const nb = new Uint8Array(cap); nb.set(this.buf.subarray(0, this.len)); this.buf = nb;
+    }
+    this.buf.set(chunk, this.len); this.len += chunk.length;
+  }
+
+  async push(chunk) {
+    const S = this.sliceBytes, n = chunk.length;
+    if (n <= S) { this._append(chunk); await this._run(false); return; }
+    for (let o = 0; o < n; o += S) {
+      this._append(chunk.subarray(o, Math.min(n, o + S)));
+      await this._run(false);
+    }
+  }
+
+  async end() {
+    await this._run(true);
+    if (this.state !== 'tail') {
+      if (this.members.length === 0 && this.state === 'sig') throw new ContainerError('not_zip', MSG_NOT_ZIP);
+      throw new ContainerError('truncated', 'File is truncated: the input ends inside a zip entry or before the central directory');
+    }
+    this._checkTail();
+  }
+
+  async _run(eof) {
+    for (;;) {
+      const avail = this.len - this.pos;
+      const b = this.buf, p = this.pos;
+      if (this.state === 'sig') {
+        if (avail < 4) {
+          if (eof && avail > 0 && this.members.length === 0) throw new ContainerError('not_zip', MSG_NOT_ZIP);
+          return;
+        }
+        const sig = u32(b, p);
+        if (sig === SIG_LOCAL) { this.state = 'local'; continue; }
+        if (sig === SIG_CENTRAL || sig === SIG_EOCD || sig === SIG_Z64_EOCD || sig === SIG_Z64_LOCATOR) { this.state = 'tail'; continue; }
+        if (this.members.length === 0) throw new ContainerError('not_zip', MSG_NOT_ZIP);
+        throw new ContainerError('damaged', `File is damaged: unexpected bytes at offset ${this.offset + p} between zip entries`);
+      }
+      if (this.state === 'local') {
+        if (avail < 30) { if (eof) throw new ContainerError('truncated', 'File is truncated: a zip local header is cut short'); return; }
+        const nameLen = u16(b, p + 26), extraLen = u16(b, p + 28);
+        if (avail < 30 + nameLen + extraLen) { if (eof) throw new ContainerError('truncated', 'File is truncated: a zip local header is cut short'); return; }
+        const flags = u16(b, p + 6), method = u16(b, p + 8);
+        const crc = u32(b, p + 14), compSize = u32(b, p + 18), size = u32(b, p + 22);
+        const name = new TextDecoder('utf-8').decode(b.subarray(p + 30, p + 30 + nameLen));
+        if (compSize === 0xFFFFFFFF || size === 0xFFFFFFFF || hasZip64Extra(b, p + 30 + nameLen, extraLen)) {
+          throw new ContainerError('refused_zip64', 'ZIP64 archives are not supported; this file was refused');
+        }
+        if (flags & 0x0001) {
+          throw new ContainerError('refused_encrypted', `Encrypted zip entries are not supported (${name} is encrypted); this file was refused`);
+        }
+        const entry = { name, method, flags, crcHeader: crc, compSizeHeader: compSize, sizeHeader: size,
+          dataDescriptor: (flags & 0x0008) !== 0, localOffset: this.offset + p,
+          compRead: 0, size: 0, crc: 0, crcStored: null, crcOk: null, consumed: false };
+        this.pos += 30 + nameLen + extraLen;
+        const consumer = this.sink.memberStart(entry);
+        if (consumer && method !== 0 && method !== 8) {
+          throw new ContainerError('refused_method', `unsupported compression method ${method} for ${name}; this file was refused`);
+        }
+        if (!consumer && method !== 0 && method !== 8 && entry.dataDescriptor) {
+          throw new ContainerError('refused_method', `unsupported compression method ${method} for ${name} (with a data descriptor); this file was refused`);
+        }
+        entry.consumed = !!consumer;
+        const deliver = consumer ? async (bytes) => {
+          entry.crc = crc32Update(entry.crc, bytes); entry.size += bytes.length;
+          const r = consumer.data(bytes); if (r && typeof r.then === 'function') await r;
+        } : null;
+        this.cur = { entry, consumer, deliver, inflater: null, remaining: entry.dataDescriptor ? null : compSize };
+        if (consumer && method === 8) this.cur.inflater = new Inflater('deflate-raw', deliver);
+        this.members.push(entry);
+        this.state = 'data';
+        continue;
+      }
+      if (this.state === 'data') {
+        const c = this.cur;
+        if (c.remaining !== null) {
+          const k = Math.min(c.remaining, avail);
+          if (k > 0) { await this._feed(b.slice(p, p + k)); this.pos += k; c.remaining -= k; c.entry.compRead += k; }
+          if (c.remaining === 0) { await this._endMember(c.entry.crcHeader, c.entry.sizeHeader); continue; }
+          if (eof) throw new ContainerError('truncated', `File is truncated: entry ${c.entry.name} is cut short`);
+          return;
+        }
+        // Data descriptor: look for "PK\x07\x08" + crc + compSize (== bytes read) + size,
+        // or the unsigned form crc + compSize + size followed by a zip signature.
+        let found = -1, ddLen = 0;
+        const lastStart = avail - 16;
+        for (let j = 0; j <= lastStart; j++) {
+          const at = c.entry.compRead + j;
+          if (b[p + j] === 0x50 && u32(b, p + j) === SIG_DD && u32(b, p + j + 8) === (at >>> 0)) { found = j; ddLen = 16; break; }
+          if (u32(b, p + j + 4) === (at >>> 0)) {
+            const s = u32(b, p + j + 12);
+            if (s === SIG_LOCAL || s === SIG_CENTRAL) { found = j; ddLen = 12; break; }
+          }
+        }
+        if (found >= 0) {
+          if (found > 0) await this._feed(b.slice(p, p + found));
+          const q = p + found;
+          const crc = ddLen === 16 ? u32(b, q + 4) : u32(b, q);
+          const size = ddLen === 16 ? u32(b, q + 12) : u32(b, q + 8);
+          this.pos = q + ddLen; c.entry.compRead += found;
+          await this._endMember(crc, size);
+          continue;
+        }
+        const k = Math.max(0, avail - 15);
+        if (k > 0) { await this._feed(b.slice(p, p + k)); this.pos += k; c.entry.compRead += k; }
+        if (eof) throw new ContainerError('truncated', `File is truncated: entry ${c.entry.name} has no data descriptor`);
+        return;
+      }
+      if (this.state === 'tail') {
+        if (avail > 0) { this.tail.push(b.slice(p, p + avail)); this.tailLen += avail; this.pos += avail; }
+        return;
+      }
+      return;
+    }
+  }
+
+  async _feed(bytes) {
+    const c = this.cur;
+    if (!c.consumer) return;
+    try {
+      if (c.inflater) await c.inflater.write(bytes);
+      else await c.deliver(bytes);
+    } catch (e) {
+      if (e instanceof ContainerError) throw e;
+      throw new ContainerError('corrupt_deflate', `corrupt deflate stream in ${c.entry.name}; this file was refused`);
+    }
+  }
+
+  async _endMember(crcStored, sizeStored) {
+    const c = this.cur;
+    if (c.consumer) {
+      if (c.inflater) {
+        try { await c.inflater.close(); } catch (e) {
+          if (e instanceof ContainerError) throw e;
+          throw new ContainerError('corrupt_deflate', `corrupt deflate stream in ${c.entry.name}; this file was refused`);
+        }
+      }
+      c.entry.crcStored = crcStored;
+      c.entry.crcOk = (c.entry.crc >>> 0) === (crcStored >>> 0) && c.entry.size === (sizeStored >>> 0);
+      const r = c.consumer.end(c.entry); if (r && typeof r.then === 'function') await r;
+    }
+    this.cur = null;
+    this.state = 'sig';
+  }
+
+  _checkTail() {
+    const t = new Uint8Array(this.tailLen);
+    let o = 0; for (const x of this.tail) { t.set(x, o); o += x.length; }
+    let eocd = -1;
+    for (let q = t.length - 22; q >= 0; q--) {
+      if (u32(t, q) === SIG_EOCD && q + 22 + u16(t, q + 20) <= t.length) { eocd = q; break; }
+    }
+    if (eocd < 0) throw new ContainerError('truncated', 'File is truncated: the zip end-of-central-directory record is missing');
+    if (eocd >= 20 && u32(t, eocd - 20) === SIG_Z64_LOCATOR) throw new ContainerError('refused_zip64', 'ZIP64 archives are not supported; this file was refused');
+    const nEntries = u16(t, eocd + 10);
+    if (nEntries === 0xFFFF || u32(t, eocd + 12) === 0xFFFFFFFF || u32(t, eocd + 16) === 0xFFFFFFFF) {
+      throw new ContainerError('refused_zip64', 'ZIP64 archives are not supported; this file was refused');
+    }
+    let p = 0; const central = [];
+    while (p + 46 <= eocd && u32(t, p) === SIG_CENTRAL) {
+      const flags = u16(t, p + 8), nameLen = u16(t, p + 28), extraLen = u16(t, p + 30), commentLen = u16(t, p + 32);
+      const name = new TextDecoder('utf-8').decode(t.subarray(p + 46, p + 46 + nameLen));
+      if (flags & 1) throw new ContainerError('refused_encrypted', `Encrypted zip entries are not supported (${name} is encrypted); this file was refused`);
+      if (u32(t, p + 20) === 0xFFFFFFFF || u32(t, p + 24) === 0xFFFFFFFF || hasZip64Extra(t, p + 46 + nameLen, extraLen)) {
+        throw new ContainerError('refused_zip64', 'ZIP64 archives are not supported; this file was refused');
+      }
+      central.push({ name, crc: u32(t, p + 16), size: u32(t, p + 24) });
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+    if (central.length !== nEntries) throw new ContainerError('truncated', 'File is truncated or damaged: the zip central directory is incomplete');
+    this.central = central;
+    void SIG_Z64_EOCD;
+  }
+}
+
+// S58-END-MODULE zip.js
+return Object.assign(__s58x, { ContainerError, MSG_NOT_ZIP, Inflater, ZipStream });
+})();
+__s58m['info.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE info.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// info.txt parser: "Key: value" lines, CRLF or LF. Dates are .NET ticks parsed
+// with BigInt. Keys not on the known list are kept, and treated as
+// identifying (unknown-field rule, D4).
+// S5.3: TimeZone is a known key (written as is, Part 1 §5.4); Device Type
+// and TimeZone are returned as written.
+
+const { parseDecimal } = __s58m['time.js'];
+
+const KNOWN_KEYS = new Set([
+  'Serial Number', 'Device Type', 'Firmware', 'Battery Voltage', 'Sample Rate',
+  'Start Date', 'Stop Date', 'Last Sample Time', 'Download Date', 'Board Revision',
+  'Acceleration Scale', 'Acceleration Min', 'Acceleration Max', 'Unexpected Resets',
+  'TimeZone',
+]);
+const IDENTIFYING_KNOWN_KEYS = new Set(['Subject Name']);
+const TICK_KEYS = ['Start Date', 'Stop Date', 'Last Sample Time', 'Download Date'];
+
+function parseInfo(bytes) {
+  const text = new TextDecoder('utf-8').decode(bytes);
+  const lineEnding = text.includes('\r\n') ? 'CRLF' : (text.includes('\n') ? 'LF' : 'none');
+  const fields = new Map();
+  const unknown = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\r$/, '');
+    if (line.trim() === '') continue;
+    const k = line.indexOf(':');
+    if (k < 0) { unknown.push({ key: line.trim(), value: '' }); continue; }
+    const key = line.slice(0, k).trim();
+    const value = line.slice(k + 1).trim();
+    fields.set(key, value);
+    if (!KNOWN_KEYS.has(key) && !IDENTIFYING_KNOWN_KEYS.has(key)) unknown.push({ key, value });
+  }
+  const ticks = {};
+  for (const key of TICK_KEYS) {
+    if (fields.has(key) && /^-?\d+$/.test(fields.get(key))) ticks[key] = BigInt(fields.get(key));
+  }
+  const rate = fields.has('Sample Rate') ? parseDecimal(fields.get('Sample Rate')) : null;
+  const accelScale = fields.has('Acceleration Scale') ? parseDecimal(fields.get('Acceleration Scale')) : null;
+  return {
+    lineEnding,
+    serial: fields.get('Serial Number') || null,
+    firmware: fields.get('Firmware') || null,
+    deviceType: fields.has('Device Type') ? fields.get('Device Type') : null,
+    timeZone: fields.has('TimeZone') ? fields.get('TimeZone') : null,
+    rate,
+    rateText: fields.get('Sample Rate') || null,
+    accelScale,
+    ticks,
+    subjectName: fields.has('Subject Name') ? fields.get('Subject Name') : null,
+    unexpectedResets: fields.has('Unexpected Resets') ? fields.get('Unexpected Resets') : null,
+    boardRevision: fields.get('Board Revision') || null,
+    batteryVoltage: fields.get('Battery Voltage') || null,
+    unknown,
+  };
+}
+
+// S58-END-MODULE info.js
+return Object.assign(__s58x, { KNOWN_KEYS, IDENTIFYING_KNOWN_KEYS, parseInfo });
+})();
+__s58m['records.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE records.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// Streaming log.bin record scanner (S5.3): framing, checksum, stray zero
+// bytes, damaged records and resync, under Part 1 §5.2 and the v1.3
+// interpretation I-1 (length fits) and I-6 (resync acceptance).
+// Bytes may arrive in chunks of any size; every decision is taken only when
+// the bytes it needs are present (or at the end of log.bin), so the result
+// does not depend on chunk boundaries.
+
+const { recordChecksum } = __s58m['decode.js'];
+const { DEFAULT_SLICE_BYTES } = __s58m['slice.js'];
+
+const TYPE_NAMES = new Map([
+  [0x00, 'ACTIVITY'], [0x02, 'BATTERY'], [0x03, 'EVENT'], [0x04, 'HEART_RATE_BPM'],
+  [0x05, 'LUX'], [0x06, 'METADATA'], [0x07, 'TAG'], [0x09, 'EPOCH'], [0x0B, 'HEART_RATE_ANT'],
+  [0x0C, 'EPOCH2'], [0x0D, 'CAPSENSE'], [0x0E, 'HEART_RATE_BLE'], [0x0F, 'EPOCH3'],
+  [0x10, 'EPOCH4'], [0x13, 'FIFO_ERROR'], [0x14, 'FIFO_DUMP'], [0x15, 'PARAMETERS'],
+  [0x18, 'SENSOR_SCHEMA'], [0x19, 'SENSOR_DATA'], [0x1A, 'ACTIVITY2'],
+]);
+function typeName(t) { return TYPE_NAMES.get(t) || 'unknown'; }
+function hexType(t) { return '0x' + t.toString(16).toUpperCase().padStart(2, '0'); }
+function isSampleType(t) { return t === 0x00 || t === 0x1A; }
+
+// I-1: ACTIVITY2 size 1 or a positive multiple of 6; ACTIVITY size 1 or
+// ceil(36n/8) for some n >= 1; EVENT size 1.
+function sizeFits(type, size) {
+  if (type === 0x1A) return size === 1 || (size > 0 && size % 6 === 0);
+  if (type === 0x00) {
+    if (size === 1) return true;
+    const n = Math.floor(size * 8 / 36);
+    return n >= 1 && Math.ceil(36 * n / 8) === size;
+  }
+  if (type === 0x03) return size === 1;
+  return false;
+}
+
+const WAIT = 0, GO = 1;
+
+function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+
+/**
+ * handlers.record({lb, type, ts, size, checksumOk}, buf, payloadStart): called
+ *   for every accepted record, in log.bin order; buf is only valid during the call.
+ * handlers.integrity(entry): truncated records and skipped (resync) ranges.
+ */
+// S5.4c: push() processes its input in slices of at most sliceBytes; bytes are
+// copied into the internal carry buffer (one slice plus at most one partial
+// record), so no view of the caller's bytes is kept.
+class LogScanner {
+  constructor(handlers, sliceBytes = DEFAULT_SLICE_BYTES) {
+    this.h = handlers;
+    this.sliceBytes = sliceBytes;
+    this.buf = new Uint8Array(1 << 16);
+    this.len = 0; this.p = 0; this.base = 0;
+    this.totalBytes = 0;
+    this.trailingZeroBytes = 0;
+    this.junk = null;
+    this.finished = false;
+  }
+
+  push(chunk) {
+    const S = this.sliceBytes, n = chunk.length;
+    if (n <= S) {
+      this._append(chunk);
+      this.totalBytes += n;
+      this._run(false);
+      return;
+    }
+    for (let o = 0; o < n; o += S) {
+      const piece = chunk.subarray(o, Math.min(n, o + S));
+      this._append(piece);
+      this.totalBytes += piece.length;
+      this._run(false);
+    }
+  }
+
+  end() { this._run(true); this.finished = true; }
+
+  _append(chunk) {
+    if (this.p > 0) {
+      this.buf.copyWithin(0, this.p, this.len);
+      this.len -= this.p; this.base += this.p; this.p = 0;
+    }
+    if (this.len + chunk.length > this.buf.length) {
+      let cap = this.buf.length;
+      while (cap < this.len + chunk.length) cap *= 2;
+      const nb = new Uint8Array(cap); nb.set(this.buf.subarray(0, this.len)); this.buf = nb;
+    }
+    this.buf.set(chunk, this.len); this.len += chunk.length;
+  }
+
+  _hdr(q) {
+    const b = this.buf;
+    return { type: b[q + 1], ts: u32(b, q + 2), size: b[q + 6] | (b[q + 7] << 8) };
+  }
+
+  _truncated(q, h) {
+    this.h.integrity({
+      type: hexType(h.type), name: typeName(h.type), lb: this.base + q, second: h.ts,
+      reason: 'length runs past end of log.bin', reason_code: 'truncated', decoded: false,
+      declared_size: h.size, bytes_present: this.len - q,
+    });
+  }
+
+  _startJunk(q, why) {
+    const b = this.buf;
+    let header = null;
+    if (b[q] === 0x1E && q + 8 <= this.len) header = this._hdr(q);
+    this.junk = { lb: this.base + q, header, reason: 'resync / ' + why };
+    this.p = q + 1;
+  }
+
+  _closeJunk(q, accepted) {
+    const j = this.junk;
+    this.h.integrity({
+      type: j.header ? hexType(j.header.type) : null, name: j.header ? typeName(j.header.type) : null,
+      lb: j.lb, second: j.header ? j.header.ts : null,
+      reason: j.reason, reason_code: 'resync', decoded: false, decoded_samples: 0,
+      skipped_lb_range: [j.lb, this.base + q - 1], skipped_bytes: this.base + q - j.lb,
+      resync_accepted_lb: accepted ? this.base + q : null,
+      resync_accepted_by: accepted || null,
+    });
+    this.junk = null;
+  }
+
+  // Is position r (after a candidate record) a plausible continuation?
+  _followOk(r, eof) {
+    const b = this.buf, n = this.len;
+    while (r < n && b[r] === 0) r++;
+    if (r >= n) return eof ? true : WAIT;
+    if (b[r] !== 0x1E) return false;
+    if (r + 8 > n) return eof ? false : WAIT;
+    const h = this._hdr(r);
+    const end = r + 9 + h.size;
+    if (end > n) return eof ? TYPE_NAMES.has(h.type) : WAIT;
+    if (recordChecksum(b, r, h.size) === b[end - 1]) return true;
+    return isSampleType(h.type) && sizeFits(h.type, h.size);
+  }
+
+  _resync(eof) {
+    const b = this.buf, n = this.len;
+    for (let q = this.p; q < n; q++) {
+      if (b[q] !== 0x1E) continue;
+      if (q + 8 > n) { if (!eof) { this.p = q; return WAIT; } continue; }
+      const h = this._hdr(q);
+      const end = q + 9 + h.size;
+      if (end > n) {
+        if (!eof) { this.p = q; return WAIT; }
+        // I-6 truncated-record rule, applied during resync only to a candidate
+        // that meets the part of the acceptance test that can be checked
+        // without the missing bytes (sample type and size fits, I-1).
+        if (isSampleType(h.type) && sizeFits(h.type, h.size)) { this._closeJunk(q, null); this._truncated(q, h); this.p = n; return GO; }
+        continue;
+      }
+      const ok = recordChecksum(b, q, h.size) === b[end - 1];
+      const fits = isSampleType(h.type) && sizeFits(h.type, h.size);
+      if (!ok && !fits) continue;
+      const f = this._followOk(end, eof);
+      if (f === WAIT) { this.p = q; return WAIT; }
+      if (!f) continue;
+      this._closeJunk(q, ok ? 'valid checksum and a valid next record' : 'sample type, size fits, and a valid next record');
+      this.p = q;
+      return GO;
+    }
+    if (!eof) { this.p = n; return WAIT; }
+    this._closeJunk(n, null);
+    this.p = n;
+    return GO;
+  }
+
+  _run(eof) {
+    const b = this.buf;
+    for (;;) {
+      if (this.junk) { if (this._resync(eof) === WAIT) break; continue; }
+      const n = this.len, p = this.p;
+      if (p >= n) break;
+      const c = b[p];
+      if (c === 0x00) { this.trailingZeroBytes++; this.p++; continue; }
+      if (c !== 0x1E) { this._startJunk(p, 'bytes do not start a record'); continue; }
+      if (p + 8 > n) { if (!eof) break; this._startJunk(p, 'incomplete record header at end of log.bin'); continue; }
+      const h = this._hdr(p);
+      const end = p + 9 + h.size;
+      const name = typeName(h.type);
+      if (end > n) {
+        if (!eof) break;
+        if (TYPE_NAMES.has(h.type)) { this._truncated(p, h); this.p = n; continue; }
+        this._startJunk(p, `invalid record (unknown type ${hexType(h.type)} runs past the end of log.bin)`);
+        continue;
+      }
+      const ok = recordChecksum(b, p, h.size) === b[end - 1];
+      let accept = false, why = null;
+      if (isSampleType(h.type)) {
+        if (ok || sizeFits(h.type, h.size)) accept = true;
+        else why = `size ${h.size} does not fit ${name}`;
+      } else if (h.type === 0x03) {
+        if (ok || h.size === 1) accept = true;
+        else why = `EVENT size ${h.size} with a checksum mismatch`;
+      } else if (TYPE_NAMES.has(h.type)) {
+        if (ok) accept = true;
+        else {
+          const f = this._followOk(end, eof);
+          if (f === WAIT) break;
+          if (f) accept = true; else why = `checksum mismatch in ${name} and no valid record after it`;
+        }
+      } else if (ok) accept = true;
+      else why = `unknown type ${hexType(h.type)} with a checksum mismatch`;
+      if (!accept) { this._startJunk(p, `invalid record (${why})`); continue; }
+      this.h.record({ lb: this.base + p, type: h.type, ts: h.ts, size: h.size, checksumOk: ok }, b, p + 8);
+      this.p = end;
+    }
+  }
+}
+
+// S58-END-MODULE records.js
+return Object.assign(__s58x, { TYPE_NAMES, typeName, hexType, isSampleType, sizeFits, LogScanner });
+})();
+__s58m['gt3x.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE gt3x.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// Streaming parser core (S5.3): input chunks -> [gunzip] -> zip entries ->
+// info.txt + log.bin (or old-format activity.bin) -> whole-second batches of
+// typed arrays, plus the window, runs, idle sleep, odd seconds, events and
+// integrity report of TEST_PROTOCOL_AMENDMENT v1.4 Part 1 as amended by
+// v1.4.1 (R for C1-C5). Uses only APIs present in browsers and Node
+// (no Node modules, no Buffer, no process, no Date).
+// S5.5c (parser_s5d): old-format activity.bin is decoded as it is read (no member held whole on the
+// random-access path, in either member order); new entry point parseRandomAccess({ read, size }, opts);
+// new top-level sidecar key idle_sleep_used; old-format census.members_parsed in a fixed order.
+// S5.5d (parser_s5e): (1) the 3-decimal tie rule is cached in one fixed Int8Array indexed by |value| instead of a Map
+// that grew with every distinct sample value (log format: up to 65,536 entries); (2) one-pass push hold-then-commit for
+// activity.bin arriving after info.txt (cap HOLD_CAP_BYTES, test-only testHoldCap); (3) parseRandomAccess feeds each read
+// to the parser in pieces of FEED_PIECE_BYTES with a task yield between pieces (random_access.js).
+
+const { ZipStream, ContainerError, Inflater } = __s58m['zip.js'];
+const { parseInfo } = __s58m['info.js'];
+const { LogScanner, TYPE_NAMES, typeName, hexType, isSampleType } = __s58m['records.js'];
+const { sspDecode } = __s58m['decode.js'];
+const { ticksToUnix, formatSeconds, formatTicks, parseUtcOffset } = __s58m['time.js'];
+const { resolveSliceBytes } = __s58m['slice.js'];
+__s58re(__s58m['slice.js'], [['DEFAULT_SLICE_BYTES', 'DEFAULT_SLICE_BYTES']]);
+
+const TOOL_NAME = 'gt3x browser reader';
+const TOOL_VERSION = '0.5.5-s5.5d';
+
+const MSG_NO_RAW = 'No raw acceleration records in this file';
+const MSG_NOT_GT3X = 'not a .gt3x file (missing log.bin/activity.bin)';
+const MSG_NO_INFO = 'not a .gt3x file (missing info.txt)';
+const MSG_GAPS_OLD = 'Interior gaps and idle sleep are not detectable in this format (activity.bin has no record timestamps)';
+const MSG_G_REFUSED = 'No acceleration scale could be determined (no PARAMETERS ACCEL_SCALE, no info.txt Acceleration Scale, no documented scale for the serial prefix): g columns are refused; raw integers only.';
+const MSG_FW160 = 'This MOS device has firmware 1.6.0, which rotates the X and Y axes 90 degrees about Z. A correction is available (off by default).';
+const MSG_BOTH = 'Both log.bin and activity.bin are present; log.bin decides the format and activity.bin is not decoded.';
+const MSG_LUX = 'lux.bin is present; light values are uncalibrated and are not exported.';
+const COVERAGE_DISCLAIMER = 'Coverage shows where the file has data; it is not wear time, sleep, or activity.';
+const FILL_ZERO_HELP = 'Zero fill writes 0 on every axis of each filled row. Zero on every axis is not a real resting reading, because gravity is always present. Filled values are estimates, not measured data.';
+const FILL_CARRY_HELP = 'Carry-last fill repeats the last decoded sample in each filled row. Filled values are estimates, not measured data.';
+const WINDOW_INVALID_REPORT = 'window invalid; not counted';
+
+// flag codes in batches
+const FLAG_NAMES = ['', 'corrected_fw160', 'fill_zero', 'fill_locf'];
+const FILLED_NONE = 0, FILLED_INTERIOR = 1, FILLED_IDLE = 2;
+
+// Device families (Part 1 §1; v1.3 I-3): known family codes and their
+// log-format scale. MRA is a known family with no documented log-format
+// scale (the 341 in the NHANES activity.bin doc is old-format only).
+const FAMILY_SCALE = new Map([['MOS', 256], ['NEO', 341], ['CLE', 341], ['MRA', null]]);
+const OLD_FORMAT_SCALE = 341; // NHANES activity.bin.md
+
+const OUT_OF_RANGE_OLD = (v) => v < -2046 || v > 2046;
+
+function fw160Applies(serial, firmware) {
+  return typeof serial === 'string' && serial.startsWith('MOS') && firmware === '1.6.0';
+}
+
+function serialPrefix(serial) {
+  if (serial === null || serial === undefined) return { prefix: null, short: false };
+  if (serial.length < 3) return { prefix: serial, short: true };
+  return { prefix: serial.slice(0, 3), short: false };
+}
+
+function normalizeFill(f) {
+  if (f === undefined || f === null || f === 'none') return 'none';
+  if (f === 'zero') return 'zero';
+  if (f === 'carry_last' || f === 'locf') return 'carry_last';
+  throw new Error(`unknown fill_mode ${f}`);
+}
+
+function decodeParameters(bytes, start, end) {
+  const out = { pairs: 0 };
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let o = start; o + 8 <= end; o += 8) {
+    const addr = dv.getUint16(o, true), id = dv.getUint16(o + 2, true), value = dv.getUint32(o + 4, true);
+    out.pairs++;
+    if (addr === 0 && id === 55) out.accelScale = sspDecode(value);
+    else if (addr === 1 && id === 10) out.sampleRate = value;
+    else if (addr === 1 && id === 40) out.utcOffsetSeconds = dv.getInt32(o + 4, true);
+  }
+  return out;
+}
+
+// ---- sorted, merged integer interval lists [[a, b], ...] (inclusive) ----
+function ivAdd(iv, s) {
+  const n = iv.length;
+  if (n === 0) { iv.push([s, s]); return true; }
+  const last = iv[n - 1];
+  if (s > last[1] + 1) { iv.push([s, s]); return true; }
+  if (s === last[1] + 1) { last[1] = s; return true; }
+  if (s >= last[0]) return false;
+  // backward: binary search for the first interval with b >= s - 1
+  let lo = 0, hi = n - 1;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (iv[m][1] < s - 1) lo = m + 1; else hi = m; }
+  const cur = iv[lo];
+  if (s >= cur[0] && s <= cur[1]) return false;
+  if (s === cur[1] + 1) {
+    cur[1] = s;
+    if (lo + 1 < n && iv[lo + 1][0] === s + 1) { cur[1] = iv[lo + 1][1]; iv.splice(lo + 1, 1); }
+    return true;
+  }
+  if (s === cur[0] - 1) { cur[0] = s; return true; }
+  iv.splice(lo, 0, [s, s]);
+  return true;
+}
+function ivHas(iv, s) {
+  let lo = 0, hi = iv.length - 1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (iv[m][1] < s) lo = m + 1; else if (iv[m][0] > s) hi = m - 1; else return true; }
+  return false;
+}
+function ivCount(iv, lo, hi) { // count of members within [lo, hi]
+  let c = 0;
+  for (const [a, b] of iv) { const x = Math.max(a, lo), y = Math.min(b, hi); if (y >= x) c += y - x + 1; }
+  return c;
+}
+
+function concat(chunks, total) {
+  const out = new Uint8Array(total); let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out;
+}
+
+// S5.5c: fixed order of parsed members in the old-format census, independent of zip member order
+const MEMBER_ORDER = ['info.txt', 'log.bin', 'activity.bin', 'lux.bin'];
+function memberRank(name) { const k = MEMBER_ORDER.indexOf(name); return k < 0 ? MEMBER_ORDER.length : k; }
+function sameBytes(a, b) { if (a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+
+// S5.5d: the new push hold (activity.bin after info.txt, before any log.bin) holds at most this many bytes of member
+// data, then commits to the old format. opts.testHoldCap is a TEST-ONLY construction option that lowers it.
+const HOLD_CAP_BYTES = 134217728;
+function resolveHoldCap(v) {
+  if (v === undefined) return HOLD_CAP_BYTES;
+  if (!Number.isInteger(v) || v < 0) throw new Error('testHoldCap (test-only option) must be an integer >= 0');
+  return v;
+}
+const TIE_ABS_MAX = 32768; // |value| range of a 16-bit sample; 12-bit values are a subset
+
+class Refusal extends Error { constructor(kind, message) { super(message); this.kind = kind; } }
+
+class Gt3xParser {
+  constructor(opts = {}) {
+    this.fillMode = normalizeFill(opts.fillMode ?? opts.fill);
+    this.correctFw160 = !!opts.correctFw160;
+    this.applyUtcOffset = !!opts.applyUtcOffset;
+    this.onBatch = opts.onBatch || (() => {});
+    this.onStart = opts.onStart || (() => {});
+    // S5.4c: fixed internal slice size; opts.testSliceBytes is test-only (README).
+    this.sliceBytes = resolveSliceBytes(opts.testSliceBytes);
+    // S5.5d: cap of the new push hold (README); opts.testHoldCap is test-only.
+    this.holdCap = resolveHoldCap(opts.testHoldCap);
+    this.randomAccess = false; // set by parseRandomAccess: the entry point never holds a member
+    this.newHold = null;       // { len } while the new hold is active
+    this.holdCommitted = false;
+    // S5.5d TEST-ONLY counter (README): the largest number of member-data bytes held at once by any push hold
+    // (new hold, activity.bin before info.txt, log.bin before info.txt). Not part of the result or the sidecar.
+    this.testHoldStats = { maxHeldBytes: 0, committed: false, dropped: false };
+    this.logPendingLen = 0;
+    this.inputBytes = 0;
+    this.sniffBuf = new Uint8Array(2); // S5.4c: at most the 2 bytes needed to choose zip/gzip are copied
+    this.sniffLen = 0;
+    this.mode = null;
+    this.error = null;
+    this.zip = new ZipStream(this, this.sliceBytes);
+    this.gunzip = null;
+    this.info = null;
+    this.infoChunks = []; this.infoLen = 0;
+    this.logPresent = false; this.logPending = []; this.logEnded = false;
+    this.actPresent = false; this.actChunks = []; this.actLen = 0;
+    this.luxBytes = null;
+    this.membersSeen = [];
+    this.scanner = null;
+    this.started = false;
+    this.header = null;
+    this.identifying = [];
+    this.messages = []; this.notices = []; this.warnItems = [];
+    this.events = [];
+    this.integrityRecords = [];
+    this.census = {};
+    this.recordCount = 0;
+    this.usbEvents = 0;
+    this.params = null;
+    this.paramsAfterData = false;
+    this.usedUtc = false; this.utcOffsetText = null;
+    // runs / seconds state
+    this.lastTs = null; this.nonIncreasing = 0;
+    this.allIv = []; this.fwdIv = [];
+    this.maxSeen = null; this.curCount = 0;
+    this.odd = new Map(); this.late = new Map();
+    this.beforeSamples = 0; this.afterSamples = 0;
+    this.classifiedUpTo = null; this.anyInWindow = false;
+    this.idleOpen = null; this.idlePeriods = [];
+    this.lastSample = null;
+    this.rowsDecoded = 0; this.rowsFilled = 0;
+    this.sampleRecords = 0; this.damagedSampleRecords = 0;
+    this.outOfRange = 0;
+    this.ties = 0; this.tieDiffer = 0; this.tieTab = new Int8Array(TIE_ABS_MAX + 1).fill(-1); // S5.5d: fixed size
+    this.microCache = [];
+    // S5.5c
+    this.idleSleepUsed = false;   // an accepted EVENT (0x03) record with payload byte 0x08 was seen
+    this.infoPreloaded = null;    // info.txt bytes read ahead by parseRandomAccess
+    this.dirHints = null;         // { logPresent } from the zip directory (parseRandomAccess only)
+    this.oldStreaming = false;    // activity.bin is being decoded as it arrives
+    this.old = null;              // bounded old-format decoder state
+  }
+
+  // ---------------- input ----------------
+  // S5.4c: the input is processed in fixed-size slices (this.sliceBytes); the
+  // gzip decompressor gets a copy of one slice per write, the zip reader copies
+  // each slice into its own small buffer. No view of the caller's chunk is kept.
+  async push(chunk) {
+    if (!(chunk instanceof Uint8Array)) chunk = new Uint8Array(chunk);
+    this.inputBytes += chunk.length;
+    if (this.error) return;
+    try {
+      let start = 0;
+      if (this.mode === null) {
+        while (this.sniffLen < 2 && start < chunk.length) this.sniffBuf[this.sniffLen++] = chunk[start++];
+        if (this.sniffLen < 2) return;
+        const head = this.sniffBuf.slice(0, 2);
+        this._chooseMode(head);
+        await this._sliced(head, 0);
+      }
+      await this._sliced(chunk, start);
+    } catch (e) { this._fail(e); }
+  }
+
+  async _sliced(bytes, start) {
+    const S = this.sliceBytes, n = bytes.length;
+    for (let o = start; o < n; o += S) {
+      const piece = bytes.subarray(o, Math.min(n, o + S));
+      if (this.mode === 'gzip') await this.gunzip.write(piece.slice());
+      else await this.zip.push(piece);
+    }
+  }
+
+  _chooseMode(head) {
+    if (head.length >= 2 && head[0] === 0x1F && head[1] === 0x8B) {
+      this.mode = 'gzip';
+      this.gunzip = new Inflater('gzip', (b) => this.zip.push(b));
+    } else this.mode = 'zip';
+  }
+
+  async end() {
+    if (!this.error) {
+      try {
+        if (this.mode === null) {
+          const head = this.sniffBuf.slice(0, this.sniffLen);
+          this._chooseMode(head);
+          if (head.length) await this.zip.push(head);
+        }
+        if (this.mode === 'gzip') {
+          try { await this.gunzip.close(); } catch (e) {
+            if (e instanceof ContainerError || e instanceof Refusal) throw e;
+            throw new ContainerError('corrupt_gzip', 'corrupt gzip stream; this file was refused');
+          }
+        }
+        await this.zip.end();
+        this._finish();
+      } catch (e) { this._fail(e); }
+    }
+    return this._result();
+  }
+
+  _fail(e) {
+    if (this.error) return;
+    if (e instanceof ContainerError || e instanceof Refusal) this.error = { kind: e.kind, message: e.message };
+    else this.error = { kind: 'damaged', message: `File could not be read: ${e && e.message}` };
+  }
+
+  // S5.5c: info.txt read ahead by parseRandomAccess. hints.logPresent says whether the zip holds a log.bin.
+  preloadInfo(bytes, hints) {
+    const info = parseInfo(bytes); // throws before any state changes
+    this.info = info; this.infoPreloaded = bytes.slice(); this.dirHints = { logPresent: !!(hints && hints.logPresent) };
+    this._infoReady();
+  }
+
+  // ---------------- zip members ----------------
+  memberStart(entry) {
+    this.membersSeen.push(entry);
+    const name = entry.name;
+    if (name === 'info.txt' && this.infoPreloaded) {
+      // S5.5c: info.txt was read ahead (parseRandomAccess); the sequential bytes must be the same
+      const chunks = []; let len = 0;
+      return { data: (b) => { chunks.push(b.slice()); len += b.length; },
+        end: () => { if (!sameBytes(concat(chunks, len), this.infoPreloaded)) throw new Refusal('damaged', 'File could not be read: info.txt differs between the directory read and the sequential read'); } };
+    }
+    if (name === 'info.txt') {
+      return { data: (b) => { this.infoChunks.push(b.slice()); this.infoLen += b.length; },
+        end: () => { this.info = parseInfo(concat(this.infoChunks, this.infoLen)); this.infoChunks = null; this._infoReady(); } };
+    }
+    if (name === 'log.bin') {
+      if (this.oldStreaming && this.old && !this.old.refuse) {
+        throw new Refusal('member_order', `log.bin comes after an activity.bin that the one-pass push API had already begun to decode after holding ${this.holdCap} bytes (the push hold cap); this member order needs the random-access entry point (parseRandomAccess). This file was refused.`);
+      }
+      if (this.newHold) { // S5.5d: log.bin governs; the held activity.bin data is dropped (its CRC was checked by the zip reader)
+        this.actChunks = []; this.actLen = 0; this.newHold = null; this.testHoldStats.dropped = true;
+      }
+      this.logPresent = true;
+      return { data: (b) => { if (this.scanner) this.scanner.push(b); else { this.logPending.push(b.slice()); this.logPendingLen += b.length; this._heldNow(this.logPendingLen); } },
+        end: () => { this.logEnded = true; if (this.scanner) this.scanner.end(); } };
+    }
+    if (name === 'activity.bin') {
+      this.actPresent = true;
+      // S5.5c: log.bin decides; when it is known to be present, activity.bin is CRC-checked only.
+      if (this.logPresent || (this.dirHints && this.dirHints.logPresent)) return { data: () => {}, end: () => {} };
+      // info.txt known on the random-access entry point: decode as the bytes arrive (bounded state; never held)
+      if (this.info && this.randomAccess) { this._oldBegin(); return { data: (b) => this._oldData(b), end: () => {} }; }
+      // S5.5d new hold (one-pass push API, info.txt already read, no log.bin yet): hold up to holdCap bytes, then commit
+      if (this.info) { this.newHold = { len: 0 }; return { data: (b) => this._holdData(b), end: () => {} }; }
+      // info.txt not yet read (one-pass push API, INFOLAST): held until the end of input (push-only limit, unchanged)
+      return { data: (b) => { if (!this.logPresent) { this.actChunks.push(b.slice()); this.actLen += b.length; this._heldNow(this.actLen); } }, end: () => {} };
+    }
+    if (name === 'lux.bin') {
+      this.luxBytes = 0;
+      return { data: (b) => { this.luxBytes += b.length; }, end: () => {} };
+    }
+    return null;
+  }
+
+  _heldNow(n) { if (n > this.testHoldStats.maxHeldBytes) this.testHoldStats.maxHeldBytes = n; }
+
+  // S5.5d: new hold. Holds activity.bin data while it fits under holdCap; at the cap, commits to the old format
+  // (decodes the held data, then the rest as it arrives, exactly as the bounded decoder does on the entry point).
+  _holdData(b) {
+    if (this.holdCommitted) { this._oldData(b); return; }
+    if (!this.newHold) return; // dropped: log.bin governs
+    if (this.actLen + b.length <= this.holdCap) {
+      this.actChunks.push(b.slice()); this.actLen += b.length; this.newHold.len = this.actLen; this._heldNow(this.actLen); return;
+    }
+    this.holdCommitted = true; this.testHoldStats.committed = true; this.newHold = null;
+    this._oldBegin();
+    const held = this.actChunks; this.actChunks = []; this.actLen = 0;
+    for (let k = 0; k < held.length; k++) { this._oldData(held[k]); held[k] = null; }
+    this._oldData(b);
+  }
+
+  _infoReady() {
+    const info = this.info;
+    const sp = serialPrefix(info.serial);
+    this.serial = sp;
+    const fam = sp.short || sp.prefix === null ? undefined : sp.prefix.toUpperCase();
+    this.familyKnown = fam !== undefined && FAMILY_SCALE.has(fam);
+    this.familyScale = this.familyKnown ? FAMILY_SCALE.get(fam) : null;
+    if (info.subjectName !== null) this.identifying.push({ source: 'info.txt', field: 'Subject Name', value: info.subjectName });
+    for (const u of info.unknown) this.identifying.push({ source: 'info.txt', field: u.key, value: u.value });
+    if (info.serial) this.identifying.push({ source: 'info.txt', field: 'Serial Number (full)', value: info.serial });
+    // rate
+    this.rate = info.rate && info.rate.num > 0n ? { num: Number(info.rate.num), den: Number(info.rate.den) } : null;
+    this.rateValue = this.rate ? this.rate.num / this.rate.den : null;
+    this.perSecond = this.rate ? Math.ceil(this.rate.num / this.rate.den) : 0;
+    // window (Part 1 §2.1 Option B; §2.2 seconds; v1.4.1 C3)
+    const t = info.ticks;
+    const tsec = (k) => (t[k] !== undefined && t[k] !== 0n ? Number(ticksToUnix(t[k]).unix) : null);
+    const start = tsec('Start Date');
+    let end = null, endSource = null;
+    for (const [k, src] of [['Last Sample Time', 'last_sample_time'], ['Stop Date', 'stop_date'], ['Download Date', 'download_date']]) {
+      const v = tsec(k); if (v !== null) { end = v; endSource = src; break; }
+    }
+    const invalid = start === null || end === null || end <= start;
+    this.window = { start_second: start, end_second_exclusive: end, end_source: endSource, invalid,
+      start_text: start === null ? null : formatSeconds(start), end_text: end === null ? null : formatSeconds(end) };
+    if (invalid) this.window.reason = start === null ? 'no Start Date' : (end === null ? 'no Last Sample Time, Stop Date or Download Date' : 'floor(end) <= floor(start)');
+    this.W0 = invalid ? null : start; this.W1 = invalid ? null : end;
+    this.classifiedUpTo = invalid ? null : start - 1;
+    this.scanner = new LogScanner({ record: (r, b, o) => this._record(r, b, o), integrity: (e) => this.integrityRecords.push(e) }, this.sliceBytes);
+    if (this.logPresent) {
+      for (const c of this.logPending) this.scanner.push(c);
+      this.logPending = []; this.logPendingLen = 0;
+      if (this.logEnded) this.scanner.end();
+    }
+  }
+
+  // ---------------- header / scale ----------------
+  _resolveScale(format) {
+    const info = this.info;
+    const p = this.params;
+    const candidates = {
+      PARAMETERS: p && p.accelScale ? p.accelScale.value : null,
+      info: info.accelScale ? Number(info.accelScale.num) / Number(info.accelScale.den) : null,
+      serial_prefix: this.familyScale,
+    };
+    let value = null, exact = null, source = 'none';
+    if (format === 'log' && p && p.accelScale && p.accelScale.exact && p.accelScale.value > 0) {
+      value = p.accelScale.value; exact = p.accelScale.exact; source = 'PARAMETERS';
+    } else if (info.accelScale && info.accelScale.num > 0n) {
+      exact = info.accelScale; value = candidates.info; source = 'info';
+    } else if (format === 'old') {
+      value = OLD_FORMAT_SCALE; exact = { num: BigInt(OLD_FORMAT_SCALE), den: 1n }; source = 'activity.bin format';
+    } else if (this.familyScale) {
+      value = this.familyScale; exact = { num: BigInt(this.familyScale), den: 1n }; source = 'serial prefix';
+    }
+    this.scale = { value, exact, source, candidates };
+    if (value === null) this.messages.push({ kind: 'g_refused', text: MSG_G_REFUSED });
+  }
+
+  _start(format) {
+    if (this.started) return;
+    this.started = true;
+    this.format = format;
+    this._resolveScale(format);
+    const fwApplies = format === 'log' && fw160Applies(this.info.serial, this.info.firmware);
+    this.fw160 = { applies: fwApplies, applied: fwApplies && this.correctFw160 };
+    if (fwApplies) this.notices.push({ kind: 'fw160', text: MSG_FW160 });
+    this.offsetSec = 0;
+    this.timeBasis = this.usedUtc ? 'UTC' : 'device-local';
+    if (this.applyUtcOffset) {
+      const off = parseUtcOffset(this.utcOffsetText);
+      if (this.usedUtc && off !== null) { this.timeBasis = 'local via UtcOffset'; this.offsetSec = off; }
+      else this.notices.push({ kind: 'utc_offset_not_applied', text: 'UtcOffset was not applied: the file is not marked UsedUtc or has no SubjectTimeLog UtcOffset.' });
+    }
+    const hasG = this.scale.value !== null;
+    const columns = ['time', 'x_raw', 'y_raw', 'z_raw'].concat(hasG ? ['x_g', 'y_g', 'z_g'] : []).concat(['flag'])
+      .concat(this.fillMode === 'none' ? [] : ['filled']);
+    this.header = { columns, scale: { value: this.scale.value, exact: this.scale.exact }, fill_mode: this.fillMode,
+      flag_names: FLAG_NAMES.slice() };
+    this.onStart(this.header);
+  }
+
+  // micro[i] = round-half-up of i/rate in microseconds (exact; Appendix A C4)
+  _micro(i) {
+    const c = this.microCache;
+    while (c.length <= i) {
+      const k = c.length;
+      c.push(Math.floor((2 * k * this.rate.den * 1e6 + this.rate.num) / (2 * this.rate.num)));
+    }
+    return c[i];
+  }
+
+  // ---------------- log.bin records ----------------
+  _record(r, b, o) {
+    this.recordCount++;
+    const name = TYPE_NAMES.has(r.type) ? typeName(r.type) : hexType(r.type);
+    this.census[name] = (this.census[name] || 0) + 1;
+    const sample = isSampleType(r.type);
+    if (!r.checksumOk) {
+      this.integrityRecords.push({ type: hexType(r.type), name: typeName(r.type), lb: r.lb, second: r.ts,
+        reason: 'checksum mismatch', reason_code: 'checksum_mismatch', decoded: true });
+    }
+    if (sample && r.size === 1) {
+      this.usbEvents++;
+      this.events.push({ type: hexType(r.type), name: typeName(r.type) + ' (USB connection)', lb: r.lb, second: r.ts });
+      return;
+    }
+    if (sample) { this._sampleRecord(r, b, o); return; }
+    this.events.push({ type: hexType(r.type), name: typeName(r.type), lb: r.lb, second: r.ts });
+    if (!TYPE_NAMES.has(r.type)) {
+      this.integrityRecords.push({ type: hexType(r.type), name: 'unknown', lb: r.lb, second: r.ts,
+        reason: 'unknown type', reason_code: 'unknown_type', decoded: false });
+      return;
+    }
+    if (r.type === 0x03 && r.size >= 1) { if (b[o] === 0x08) this.idleSleepUsed = true; this._idleEvent(r, b[o]); }
+    else if (r.type === 0x15) {
+      if (!this.params) {
+        this.params = decodeParameters(b, o, o + r.size);
+        if (this.started && this.params.accelScale && this.scale.source !== 'PARAMETERS') this.paramsAfterData = true;
+      }
+    } else if (r.type === 0x06) this._metadata(b, o, o + r.size);
+  }
+
+  _idleEvent(r, code) {
+    if (code === 0x08) {
+      if (this.idleOpen === null) this.idleOpen = r.ts;
+      else this.integrityRecords.push({ type: '0x03', name: 'EVENT', lb: r.lb, second: r.ts,
+        reason: 'idle-sleep enter while already in idle sleep (ignored)', reason_code: 'idle_enter_repeated', decoded: true });
+    } else if (code === 0x09) {
+      if (this.idleOpen === null) {
+        this.integrityRecords.push({ type: '0x03', name: 'EVENT', lb: r.lb, second: r.ts,
+          reason: 'idle-sleep exit with no earlier enter', reason_code: 'idle_exit_unmatched', decoded: true });
+      } else {
+        if (r.ts > this.idleOpen) this.idlePeriods.push([this.idleOpen, r.ts]);
+        this.idleOpen = null;
+      }
+    }
+  }
+
+  _metadata(b, s, e) {
+    let obj = null;
+    try { obj = JSON.parse(new TextDecoder('utf-8').decode(b.subarray(s, e))); } catch { obj = null; }
+    if (obj && typeof obj === 'object') {
+      if (obj.MetadataType === 'LocalTimeLog' && obj.UsedUtc === true) this.usedUtc = true;
+      if (obj.MetadataType === 'SubjectTimeLog' && typeof obj.UtcOffset === 'string') this.utcOffsetText = obj.UtcOffset;
+      for (const [k, v] of Object.entries(obj)) {
+        if (k === 'MetadataType' || v === null || v === '' || typeof v === 'object') continue;
+        this.identifying.push({ source: `METADATA ${obj.MetadataType || ''}`.trim(), field: k, value: String(v) });
+      }
+    } else this.identifying.push({ source: 'METADATA', field: '(unparsed)', value: '(not shown)' });
+  }
+
+  _sampleRecord(r, b, o) {
+    this.sampleRecords++;
+    if (!r.checksumOk) this.damagedSampleRecords++;
+    if (!this.rate) throw new Refusal('no_rate', 'No sample rate in info.txt; samples cannot be timed. This file was refused.');
+    this._start('log');
+    // S5.4c: samples are decoded straight into the batch's typed arrays (no
+    // per-record X/Y/Z lists). b is the scanner's buffer and stays valid for the
+    // whole call; the fill batches _dataSecond may emit first do not touch it.
+    const n = r.type === 0x1A ? Math.floor(r.size / 6) : Math.floor(r.size * 8 / 36);
+    if (n === 0) return;
+    this._dataSecond(r.ts, n);
+    const batch = this._newBatch('decoded', r.ts, n);
+    const base = (r.ts + this.offsetSec) * 1e6;
+    const corr = this.fw160.applied;
+    const bt = batch.t_us, bx = batch.x, by = batch.y, bz = batch.z, bf = batch.flag;
+    if (r.type === 0x1A) {
+      for (let i = 0; i < n; i++) {
+        const q = o + i * 6;
+        let x = ((b[q] | (b[q + 1] << 8)) << 16) >> 16;
+        let y = ((b[q + 2] | (b[q + 3] << 8)) << 16) >> 16;
+        const z = ((b[q + 4] | (b[q + 5] << 8)) << 16) >> 16;
+        bt[i] = base + this._micro(i);
+        if (corr) { const fx = y, fy = -x; x = fx; y = fy; bf[i] = 1; }
+        bx[i] = x; by[i] = y; bz[i] = z;
+        this._tie(x); this._tie(y); this._tie(z);
+      }
+    } else {
+      // Ported logic per ActiGraph MIT docs (Activity.md): 12-bit values, MSB
+      // first, stored Y, X, Z; see decode.js unpack12.
+      let nib = 0;
+      const at = (k) => { const byte = b[o + (k >> 1)]; return (k & 1) === 0 ? (byte >> 4) & 0xF : byte & 0xF; };
+      const v12 = () => { let sh = (at(nib) << 8) | (at(nib + 1) << 4) | at(nib + 2); nib += 3; if (sh & 0x800) sh -= 0x1000; return sh; };
+      for (let i = 0; i < n; i++) {
+        let y = v12(); let x = v12(); const z = v12();
+        bt[i] = base + this._micro(i);
+        if (corr) { const fx = y, fy = -x; x = fx; y = fy; bf[i] = 1; }
+        bx[i] = x; by[i] = y; bz[i] = z;
+        this._tie(x); this._tie(y); this._tie(z);
+      }
+    }
+    this.lastSample = [bx[n - 1], by[n - 1], bz[n - 1]];
+    this.rowsDecoded += n;
+    this.onBatch(batch);
+  }
+
+  // S5.5c: _tieCode(k) is the unchanged rule, factored out so the old-format decoder can cache it per value.
+  // S5.5d: the rule depends only on |k|; results are kept in the fixed table tieTab (|k| <= 32768), never in a growing map.
+  _tieCode(k) {
+    const ex = this.scale.exact;
+    if (!ex) return 0;
+    const a = Math.abs(k);
+    let t = a <= TIE_ABS_MAX ? this.tieTab[a] : -1;
+    if (t < 0) {
+      const m = BigInt(a) * ex.den * 1000n;
+      const isTie = ((2n * m) % ex.num === 0n) && (m % ex.num !== 0n);
+      t = !isTie ? 0 : (((m / ex.num) % 2n === 0n) ? 2 : 1);
+      if (a <= TIE_ABS_MAX) this.tieTab[a] = t;
+    }
+    return t;
+  }
+
+  _tie(k) {
+    if (!this.scale.exact) return;
+    const a = k < 0 ? -k : k;
+    let t = a <= TIE_ABS_MAX ? this.tieTab[a] : -1;
+    if (t < 0) t = this._tieCode(k);
+    if (t) { this.ties++; if (t === 2) this.tieDiffer++; }
+  }
+
+  // S5.4c: one backing ArrayBuffer per batch, holding the six typed arrays as
+  // separate, non-overlapping views (was six buffers). Each batch still owns
+  // fresh arrays; nothing is pooled or reused across batches.
+  _newBatch(kind, second, n) {
+    const ab = new ArrayBuffer(n * 22);
+    return { kind, second, n, t_us: new Float64Array(ab, 0, n), x: new Int32Array(ab, 8 * n, n), y: new Int32Array(ab, 12 * n, n),
+      z: new Int32Array(ab, 16 * n, n), flag: new Uint8Array(ab, 20 * n, n), filled: new Uint8Array(ab, 21 * n, n) };
+  }
+
+  // one data second with n decoded samples (both formats)
+  _dataSecond(ts, n) {
+    if (this.lastTs !== null && ts <= this.lastTs) this.nonIncreasing++;
+    this.lastTs = ts;
+    ivAdd(this.allIv, ts);
+    if (this.maxSeen === null || ts > this.maxSeen) {
+      if (this.maxSeen !== null) this._finalizeSecond(this.maxSeen, this.curCount);
+      ivAdd(this.fwdIv, ts);
+      this.maxSeen = ts; this.curCount = n;
+    } else if (ts === this.maxSeen) this.curCount += n;
+    else this.late.set(ts, (this.late.get(ts) || 0) + n);
+    if (this.W0 === null) return;
+    if (ts < this.W0) { this.beforeSamples += n; return; }
+    if (ts >= this.W1) { this.afterSamples += n; return; }
+    if (ts > this.classifiedUpTo) {
+      if (this.fillMode !== 'none') {
+        for (let s = this.classifiedUpTo + 1; s < ts; s++) this._provisional(s, this.anyInWindow);
+      }
+      this.classifiedUpTo = ts;
+    }
+    this.anyInWindow = true;
+  }
+
+  _finalizeSecond(s, c) { if (c !== this.rateValue) this.odd.set(s, c); }
+
+  _idleAt(s) {
+    if (this.idleOpen !== null && s >= this.idleOpen) return true;
+    for (const [a, b] of this.idlePeriods) if (s >= a && s < b) return true;
+    return false;
+  }
+
+  // streaming fill for a non-data second inside the window (Part 1 §3)
+  _provisional(s, afterData) {
+    if (this._idleAt(s)) this._fillSecond(s, FILLED_IDLE);
+    else if (afterData) this._fillSecond(s, FILLED_INTERIOR);
+  }
+
+  _fillSecond(s, filledCode) {
+    const zero = this.fillMode === 'zero';
+    if (!zero && !this.lastSample) return;
+    const n = this.perSecond;
+    const batch = this._newBatch('fill', s, n);
+    const base = (s + this.offsetSec) * 1e6;
+    const v = zero ? [0, 0, 0] : this.lastSample;
+    const flag = zero ? 2 : 3;
+    let k = 0;
+    for (let i = 0; i < n; i++) {
+      if (i * this.rate.den >= this.rate.num) break;
+      batch.t_us[k] = base + this._micro(i);
+      batch.x[k] = v[0]; batch.y[k] = v[1]; batch.z[k] = v[2]; batch.flag[k] = flag; batch.filled[k] = filledCode; k++;
+    }
+    this.rowsFilled += k;
+    this.onBatch(batch);
+  }
+
+  // ---------------- end of input ----------------
+  _finish() {
+    if (!this.info) throw new Refusal('not_gt3x', MSG_NO_INFO);
+    if (this.logPresent) {
+      if (this.actPresent) this.messages.push({ kind: 'format_both', text: MSG_BOTH });
+      if (!this.scanner.finished) this.scanner.end();
+      if (!this.rate && this.sampleRecords === 0) this.rate = null;
+      this._start('log');
+      if (this.W0 !== null && this.fillMode !== 'none' && this.anyInWindow && this.rate) {
+        for (let s = this.classifiedUpTo + 1; s < this.W1; s++) if (this._idleAt(s)) this._fillSecond(s, FILLED_IDLE);
+      }
+    } else if (this.actPresent) {
+      this._oldFormat();
+    } else {
+      throw new Refusal('not_gt3x', MSG_NOT_GT3X);
+    }
+    if (this.maxSeen !== null) this._finalizeSecond(this.maxSeen, this.curCount);
+    for (const [s, extra] of this.late) {
+      const base = this.odd.has(s) ? this.odd.get(s) : (ivHas(this.fwdIv, s) ? this.rateValue : 0);
+      const total = base + extra;
+      if (total !== this.rateValue) this.odd.set(s, total); else this.odd.delete(s);
+    }
+  }
+
+  // S5.5c: called at the end of input. If activity.bin was not decoded while it arrived (info.txt came
+  // later on the one-pass push path), the held bytes are decoded now by the same bounded decoder.
+  _oldFormat() {
+    if (!this.rate) throw new Refusal('no_rate', 'No sample rate in info.txt; samples cannot be timed. This file was refused.');
+    const st = this.info.ticks['Start Date'];
+    if (st === undefined || st === 0n) throw new Refusal('no_start', 'Old-format file without a Start Date; samples cannot be timed. This file was refused.');
+    if (!this.oldStreaming) {
+      this._oldBegin();
+      const held = this.actChunks; this.actChunks = null;
+      for (let k = 0; k < held.length; k++) { this._oldData(held[k]); held[k] = null; }
+    }
+    this._oldEnd();
+    this.sampleRecords = this.old.i > 0 ? 1 : 0;
+    this.messages.push({ kind: 'gaps_old', text: MSG_GAPS_OLD });
+    if (this.luxBytes !== null) this.messages.push({ kind: 'lux_omitted', text: MSG_LUX });
+  }
+
+  // ---- S5.5c bounded old-format decoder (NHANES activity.bin.md: 36-bit samples, Y X Z, 12 bits each,
+  // two's complement, MSB first; two samples per 9 bytes). State: up to 8 carry bytes and one second of samples.
+  _oldBegin() {
+    this.oldStreaming = true;
+    const st = this.info.ticks['Start Date'];
+    if (!this.rate || st === undefined || st === 0n) { this.old = { refuse: true }; return; } // refused at the end (_oldFormat)
+    this._start('old');
+    const u = ticksToUnix(st);
+    const cap = Math.ceil(this.rate.num / this.rate.den) + 1;
+    this.old = { refuse: false, sec0: Number(u.unix), rem: Number(u.remTicks), num: this.rate.num, den: this.rate.den,
+      i: 0, carry: new Uint8Array(9), carryLen: 0, q: -1, n: 0, start: 0,
+      x: new Int32Array(cap), y: new Int32Array(cap), z: new Int32Array(cap), tie: new Int8Array(4096).fill(-1) };
+  }
+
+  _oldData(b) {
+    const s = this.old;
+    if (s.refuse) return;
+    const n = b.length; let p = 0;
+    if (s.carryLen > 0) {
+      const k = Math.min(9 - s.carryLen, n);
+      s.carry.set(b.subarray(0, k), s.carryLen); s.carryLen += k; p = k;
+      if (s.carryLen < 9) return;
+      this._oldPair(s.carry, 0); s.carryLen = 0;
+    }
+    for (; p + 9 <= n; p += 9) this._oldPair(b, p);
+    if (p < n) { s.carry.set(b.subarray(p, n), 0); s.carryLen = n - p; }
+  }
+
+  _oldPair(b, o) {
+    const b1 = b[o + 1], b4 = b[o + 4], b7 = b[o + 7];
+    const y1 = (((b[o] << 4) | (b1 >> 4)) << 20) >> 20, x1 = ((((b1 & 15) << 8) | b[o + 2]) << 20) >> 20;
+    const z1 = (((b[o + 3] << 4) | (b4 >> 4)) << 20) >> 20, y2 = ((((b4 & 15) << 8) | b[o + 5]) << 20) >> 20;
+    const x2 = (((b[o + 6] << 4) | (b7 >> 4)) << 20) >> 20, z2 = ((((b7 & 15) << 8) | b[o + 8]) << 20) >> 20;
+    this._oldSample(x1, y1, z1); this._oldSample(x2, y2, z2);
+  }
+
+  _oldSample(x, y, z) {
+    const s = this.old; const i = s.i++;
+    const q = Math.floor(i * s.den / s.num);
+    if (q !== s.q) { if (s.n > 0) this._oldFlush(); s.q = q; s.start = i; }
+    s.x[s.n] = x; s.y[s.n] = y; s.z[s.n] = z; s.n++;
+  }
+
+  _oldCount(w, tie) { // out-of-range count and 3-decimal tie count, as _tie (x, y, z order)
+    if (OUT_OF_RANGE_OLD(w)) this.outOfRange++;
+    let t = tie[w + 2048];
+    if (t < 0) { t = this._tieCode(w); tie[w + 2048] = t; }
+    if (t) { this.ties++; if (t === 2) this.tieDiffer++; }
+  }
+
+  _oldEnd() {
+    const s = this.old;
+    if (s.carryLen >= 5) { // floor(8 L / 36) = 1 for 5 <= L <= 8 leftover bytes: one more sample
+      const c = s.carry;
+      this._oldSample(((((c[1] & 15) << 8) | c[2]) << 20) >> 20, (((c[0] << 4) | (c[1] >> 4)) << 20) >> 20, (((c[3] << 4) | (c[4] >> 4)) << 20) >> 20);
+    }
+    s.carryLen = 0;
+    this._oldFlush();
+  }
+
+  // one whole second of samples -> _dataSecond, one batch (v1.4.1 C5: time = Start + i/rate, half-up to µs)
+  _oldFlush() {
+    const s = this.old; const n = s.n;
+    if (n === 0) return;
+    const second = s.sec0 + s.q; // v1.4.1 C5 N1: floor(Start) + floor(i/rate)
+    this._dataSecond(second, n);
+    const batch = this._newBatch('decoded', second, n);
+    const num = s.num, den = s.den, rem = s.rem, sec0 = s.sec0, tie = s.tie;
+    for (let k = 0; k < n; k++) {
+      const id = (s.start + k) * den, q = Math.floor(id / num), r = id - q * num;
+      batch.t_us[k] = (sec0 + q) * 1e6 + Math.floor((2 * (rem * num + r * 1e7) + 10 * num) / (20 * num));
+      const x = s.x[k], y = s.y[k], z = s.z[k];
+      batch.x[k] = x; batch.y[k] = y; batch.z[k] = z;
+      this._oldCount(x, tie); this._oldCount(y, tie); this._oldCount(z, tie);
+    }
+    this.lastSample = [batch.x[n - 1], batch.y[n - 1], batch.z[n - 1]];
+    this.rowsDecoded += n;
+    s.n = 0;
+    this.onBatch(batch);
+  }
+
+  // ---------------- runs (Part 1 §2.2, v1.4.1 C4) ----------------
+  _runs() {
+    if (this.W0 === null || !this.rate) return { runs: [], idle: [] };
+    const W0 = this.W0, W1 = this.W1, rate = this.rateValue;
+    const entry = (kind, a, b) => ({ kind, start_second: a, start_text: formatSeconds(a), n_seconds: b - a + 1, n_missing_samples: (b - a + 1) * rate });
+    const inWin = [];
+    for (const [a, b] of this.allIv) { const x = Math.max(a, W0), y = Math.min(b, W1 - 1); if (y >= x) inWin.push([x, y]); }
+    if (inWin.length === 0) return { runs: [entry('no_data', W0, W1 - 1)], idle: [] };
+    const idleIv = [];
+    const periods = this.idlePeriods.slice();
+    if (this.idleOpen !== null) periods.push([this.idleOpen, W1]);
+    for (const [a, bx] of periods.sort((p, q) => p[0] - q[0])) {
+      const x = Math.max(a, W0), y = Math.min(bx - 1, W1 - 1);
+      if (y < x) continue;
+      const last = idleIv[idleIv.length - 1];
+      if (last && x <= last[1] + 1) last[1] = Math.max(last[1], y); else idleIv.push([x, y]);
+    }
+    const segs = [];
+    if (inWin[0][0] > W0) segs.push(['pre_data', W0, inWin[0][0] - 1]);
+    for (let k = 1; k < inWin.length; k++) segs.push(['interior', inWin[k - 1][1] + 1, inWin[k][0] - 1]);
+    const lastData = inWin[inWin.length - 1][1];
+    if (lastData < W1 - 1) segs.push(['post_data', lastData + 1, W1 - 1]);
+    const runs = [], idle = [];
+    for (const [kind, a, b] of segs) {
+      let cur = a;
+      for (const [x, y] of idleIv) {
+        if (y < a || x > b) continue;
+        const xa = Math.max(x, a), yb = Math.min(y, b);
+        if (xa > cur) runs.push(entry(kind, cur, xa - 1));
+        idle.push(entry('idle_sleep', xa, yb));
+        cur = yb + 1;
+      }
+      if (cur <= b) runs.push(entry(kind, cur, b));
+    }
+    return { runs, idle };
+  }
+
+  // ---------------- result ----------------
+  _result() {
+    const base = { tool: TOOL_NAME, version: TOOL_VERSION };
+    const container = {
+      gzip: this.mode === 'gzip', input_bytes: this.inputBytes,
+      members: this.membersSeen.map((e) => ({ name: e.name, method: e.method, data_descriptor: e.dataDescriptor,
+        read: e.consumed, size: e.consumed ? e.size : null, crc_ok: e.consumed ? e.crcOk : null })),
+    };
+    if (this.error) {
+      return { ok: false, error: this.error, header: this.header, privacy: [],
+        sidecar: { ...base, ok: false, error: this.error, container } };
+    }
+    const info = this.info;
+    const zipCrc = this.membersSeen.filter((e) => e.consumed && e.crcOk === false).map((e) => e.name);
+    for (const name of zipCrc) this.messages.push({ kind: 'zip_crc_mismatch', text: `zip CRC-32 mismatch in ${name}: the stored CRC does not match the contents (data may be damaged); the file is still read` });
+    const noRaw = this.sampleRecords === 0 && !this.integrityRecords.some((e) => e.reason_code !== 'checksum_mismatch' && e.type && isSampleType(parseInt(e.type, 16)));
+    if (noRaw) this.messages.push({ kind: 'no_raw', text: MSG_NO_RAW });
+    const rateMismatch = this.params && this.params.sampleRate !== undefined && this.rateValue !== null && this.params.sampleRate !== this.rateValue;
+    if (rateMismatch) this.warnItems.push({ kind: 'rate_mismatch', text: `Sample rate mismatch: info.txt says ${this.rateValue} Hz, PARAMETERS says ${this.params.sampleRate} Hz; the info.txt rate is used.` });
+    if (!this.familyKnown) this.warnItems.push({ kind: 'unknown_family', text: `Unknown device family code "${this.serial.prefix === null ? '' : this.serial.prefix}"; decoded where the format allows; scale source: ${this.scale.source}.` });
+    if (this.nonIncreasing) this.warnItems.push({ kind: 'non_increasing', text: `${this.nonIncreasing} sample record(s) have a second not later than the previous record's; samples are kept in stored order (never sorted).` });
+    if (this.paramsAfterData) this.warnItems.push({ kind: 'parameters_after_data', text: 'A PARAMETERS record with an acceleration scale came after the first sample record; the scale chosen at the first sample record is kept.' });
+    if (this.integrityRecords.length) this.warnItems.push({ kind: 'integrity', text: `${this.integrityRecords.length} integrity record(s); see integrity.records.` });
+    const { runs, idle } = this._runs();
+    const W0 = this.W0, W1 = this.W1;
+    let dow = null, dowReport = WINDOW_INVALID_REPORT;
+    if (W0 !== null) {
+      const before = ivCount(this.allIv, -Infinity, W0 - 1), after = ivCount(this.allIv, W1, Infinity);
+      dow = { before, after, before_samples: this.beforeSamples, after_samples: this.afterSamples };
+      dowReport = `data outside the window: before: ${before} data second(s) (${this.beforeSamples} samples); after: ${after} data second(s) (${this.afterSamples} samples); exported as stored, no runs`;
+    }
+    const nd = (k) => {
+      const v = info.ticks[k];
+      if (v === undefined) return null;
+      return { ticks: v.toString(), text: formatTicks(v) };
+    };
+    const dataSeconds = ivCount(this.allIv, -Infinity, Infinity);
+    const sumMissing = runs.reduce((a, r) => a + r.n_missing_samples, 0);
+    const covLines = [];
+    if (noRaw) covLines.push(MSG_NO_RAW + '.');
+    if (this.window.invalid) covLines.push(`Window invalid (${this.window.reason}); no runs; data outside the window not counted.`);
+    else covLines.push(`Window: ${this.window.start_text} to ${this.window.end_text} (end exclusive; end from ${this.window.end_source}).`);
+    covLines.push(`Data seconds: ${dataSeconds}. Missing runs: ${runs.length} (${sumMissing} samples). Idle sleep runs: ${idle.length}.`);
+    if (this.format === 'old') covLines.push(MSG_GAPS_OLD + '.');
+    covLines.push(COVERAGE_DISCLAIMER);
+    const sidecar = {
+      ...base, ok: true, error: null,
+      format: this.format,
+      data_member: this.format === 'log' ? 'log.bin' : 'activity.bin',
+      serial_prefix: this.serial.prefix,
+      serial_prefix_short: this.serial.short,
+      device_type: info.deviceType,
+      firmware: info.firmware,
+      time_zone: info.timeZone,
+      dst_adjustment: false,
+      warnings: { unknown_family: !this.familyKnown, rate_mismatch: !!rateMismatch, items: this.warnItems },
+      messages: this.messages, notices: this.notices,
+      rate: { used: this.rateValue, source: 'info', info: this.rateValue, parameters: this.params && this.params.sampleRate !== undefined ? this.params.sampleRate : null, mismatch: !!rateMismatch },
+      scale: { value: this.scale.value, source: this.scale.source, candidates: this.scale.candidates },
+      time_basis: this.timeBasis,
+      utc_offset_applied_seconds: this.offsetSec,
+      parameters_utc_offset_seconds: this.params && this.params.utcOffsetSeconds !== undefined ? this.params.utcOffsetSeconds : null,
+      native_dates: { start: nd('Start Date'), stop: nd('Stop Date'), last_sample_time: nd('Last Sample Time'), download: nd('Download Date') },
+      window: this.window,
+      runs, idle_sleep: idle,
+      idle_sleep_used: this.format === 'log' ? this.idleSleepUsed : null, // S5.5c (§A.6, J2): directly after idle_sleep
+      odd_seconds: [...this.odd.entries()].sort((a, b) => a[0] - b[0]),
+      data_seconds: dataSeconds,
+      data_second_ranges: this.allIv.map((v) => v.slice()),
+      data_outside_window: dow,
+      data_outside_window_report: dowReport,
+      events: this.events,
+      integrity: {
+        records: this.integrityRecords,
+        trailing_zero_bytes: this.scanner && this.format === 'log' ? this.scanner.trailingZeroBytes : 0,
+        non_increasing: this.nonIncreasing,
+        out_of_range: this.outOfRange,
+        zip_crc_mismatch: zipCrc,
+      },
+      census: this.format === 'old'
+        ? { members_parsed: this.membersSeen.filter((e) => e.consumed).map((e) => e.name).sort((a, b) => memberRank(a) - memberRank(b)), members_ignored: this.membersSeen.filter((e) => !e.consumed).map((e) => e.name) }
+        : this.census,
+      records: this.format === 'log' ? this.recordCount : null,
+      log_bin_bytes: this.scanner && this.logPresent ? this.scanner.totalBytes : null,
+      usb_events: this.usbEvents, usb_samples: 0,
+      fill_mode: this.fillMode,
+      fill_help: this.fillMode === 'zero' ? FILL_ZERO_HELP : (this.fillMode === 'carry_last' ? FILL_CARRY_HELP : null),
+      corrections: this.fw160 && this.fw160.applied ? ['corrected_fw160'] : [],
+      fw160: this.fw160,
+      rounding: { three_decimal_rule: 'AwayFromZero', ties_3dp: this.ties, awayfromzero_vs_half_even_differ: this.tieDiffer },
+      coverage: { text: covLines.join('\n'), disclaimer: COVERAGE_DISCLAIMER },
+      rows: this.rowsDecoded + this.rowsFilled, rows_decoded: this.rowsDecoded, rows_filled: this.rowsFilled,
+      lux: this.luxBytes !== null ? { omitted: true, label: 'uncalibrated', reason: MSG_LUX } : null,
+      container,
+    };
+    const seen = new Set(); const privacy = [];
+    for (const i of this.identifying) { const k = `${i.source}|${i.field}|${i.value}`; if (!seen.has(k)) { seen.add(k); privacy.push(i); } }
+    return { ok: true, error: null, header: this.header, sidecar, privacy };
+  }
+}
+
+function createParser(opts = {}) { return new Gt3xParser(opts); }
+
+// Convenience: feed a whole byte array in chunks and collect the batches.
+async function parseGt3xBytes(bytes, opts = {}) {
+  const batches = [];
+  const p = new Gt3xParser({ ...opts, onBatch: opts.onBatch || ((b) => batches.push(b)) });
+  const size = opts.chunkSize || 65536;
+  for (let o = 0; o < bytes.length; o += size) await p.push(bytes.subarray(o, Math.min(bytes.length, o + size)));
+  const result = await p.end();
+  result.batches = opts.onBatch ? null : batches;
+  return result;
+}
+
+// S58-END-MODULE gt3x.js
+return Object.assign(__s58x, { TOOL_NAME, TOOL_VERSION, MSG_NO_RAW, MSG_NOT_GT3X, MSG_NO_INFO, MSG_GAPS_OLD, MSG_G_REFUSED, MSG_FW160, MSG_BOTH, MSG_LUX, COVERAGE_DISCLAIMER, FILL_ZERO_HELP, FILL_CARRY_HELP, WINDOW_INVALID_REPORT, FLAG_NAMES, FILLED_NONE, FILLED_INTERIOR, FILLED_IDLE, FAMILY_SCALE, fw160Applies, serialPrefix, normalizeFill, decodeParameters, HOLD_CAP_BYTES, Gt3xParser, createParser, parseGt3xBytes });
+})();
+__s58m['format.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE format.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// Output formatters (S5.3; byte-buffer row encoding added in S5.4c): CSV text from whole-second batches, and the
+// sidecar JSON object. The CSV is the D2 format (STAGE5_2_BRIEF Appendix A);
+// with fill_mode zero or carry_last a `filled` column follows `flag`.
+
+const { formatSeconds } = __s58m['time.js'];
+const { FLAG_NAMES } = __s58m['gt3x.js'];
+
+// Full-precision g: shortest decimal that round-trips the float64 k/scale (C7).
+function gFull(k, scaleValue) {
+  const v = k / scaleValue;
+  if (v === 0) return '0';
+  let s = String(v);
+  if (/e/i.test(s)) {
+    const [mant, expS] = s.split(/e/i);
+    const exp = Number(expS);
+    const neg = mant.startsWith('-');
+    const digits = mant.replace('-', '').replace('.', '');
+    const intLen = mant.replace('-', '').split('.')[0].length + exp;
+    if (intLen <= 0) s = '0.' + '0'.repeat(-intLen) + digits;
+    else s = digits.padEnd(intLen, '0').slice(0, intLen) + (digits.length > intLen ? '.' + digits.slice(intLen) : '');
+    if (neg) s = '-' + s;
+  }
+  return s;
+}
+
+// 3-decimal g, MidpointRounding.AwayFromZero, exact (C1).
+function g3AwayFromZero(k, exactScale) {
+  const neg = k < 0;
+  const m = BigInt(Math.abs(k)) * exactScale.den * 1000n;
+  const q = (2n * m + exactScale.num) / (2n * exactScale.num);
+  const ip = q / 1000n, fp = q % 1000n;
+  const s = `${ip}.${String(fp).padStart(3, '0')}`;
+  return (neg && q !== 0n) ? '-' + s : s;
+}
+
+// Integer microseconds (a Number holding an exact integer) -> text.
+function formatMicrosNumber(us) {
+  let sec = Math.floor(us / 1e6);
+  let frac = us - sec * 1e6;
+  if (frac < 0) { sec -= 1; frac += 1e6; } else if (frac >= 1e6) { sec += 1; frac -= 1e6; }
+  return `${formatSeconds(sec)}.${String(frac).padStart(6, '0')}`;
+}
+
+// S5.4c (technique (d), output type unchanged): each batch's rows are encoded as
+// ASCII/UTF-8 bytes into one reused, fixed-size output buffer (OUT_BYTES) and
+// turned into a single flat string per batch with one TextDecoder call, instead
+// of building per-row strings and joining them. The text of every field is
+// produced by exactly the same rules as before (same caches, same functions),
+// so the CSV is byte-identical. batch() still returns a string.
+const OUT_BYTES = 65536;
+const C_COMMA = 44, C_NL = 10, C_MINUS = 45, C_0 = 48;
+
+class CsvFormatter {
+  constructor(header, opts = {}) {
+    this.header = header;
+    this.hasG = header.columns.includes('x_g');
+    this.hasFilled = header.columns.includes('filled');
+    this.scaleValue = header.scale ? header.scale.value : null;
+    this.exact = header.scale ? header.scale.exact : null;
+    this.threeDecimals = !!opts.threeDecimals;
+    this.gCache = new Map();
+    this.secCache = -Infinity; this.secText = '';
+    // byte path
+    this.enc = new TextEncoder();
+    this.dec = new TextDecoder('utf-8');
+    this.out = new Uint8Array(OUT_BYTES);
+    this.gBytes = new Map(); // k -> UTF-8 bytes of _g(k)
+    this.secBytes = new Uint8Array(0); // UTF-8 bytes of secText
+    this.flagBytes = FLAG_NAMES.map((f) => this.enc.encode(f));
+  }
+  headerLine() { return this.header.columns.join(',') + '\n'; }
+  _g(k) {
+    let s = this.gCache.get(k);
+    if (s === undefined) {
+      s = this.threeDecimals ? g3AwayFromZero(k, this.exact) : gFull(k, this.scaleValue);
+      this.gCache.set(k, s);
+    }
+    return s;
+  }
+  _gb(k) {
+    let b = this.gBytes.get(k);
+    if (b === undefined) { b = this.enc.encode(this._g(k)); this.gBytes.set(k, b); }
+    return b;
+  }
+  _time(us) {
+    let sec = Math.floor(us / 1e6);
+    let frac = us - sec * 1e6;
+    if (frac < 0) { sec -= 1; frac += 1e6; } else if (frac >= 1e6) { sec += 1; frac -= 1e6; }
+    if (sec !== this.secCache) { this.secCache = sec; this.secText = formatSeconds(sec) + '.'; }
+    return this.secText + String(frac).padStart(6, '0');
+  }
+  // String form of one row (used only for a row too long for the byte buffer).
+  _rowString(b, i) {
+    const x = b.x[i], y = b.y[i], z = b.z[i];
+    let line = `${this._time(b.t_us[i])},${x},${y},${z}`;
+    if (this.hasG) line += `,${this._g(x)},${this._g(y)},${this._g(z)}`;
+    line += ',' + FLAG_NAMES[b.flag[i]];
+    if (this.hasFilled) line += ',' + b.filled[i];
+    return line + '\n';
+  }
+  batch(b) {
+    const buf = this.out, cap = buf.length, n = b.n;
+    let pos = 0, parts = null;
+    for (let i = 0; i < n; i++) {
+      // time: same normalisation and second cache as _time()
+      const us = b.t_us[i];
+      let sec = Math.floor(us / 1e6);
+      let frac = us - sec * 1e6;
+      if (frac < 0) { sec -= 1; frac += 1e6; } else if (frac >= 1e6) { sec += 1; frac -= 1e6; }
+      if (sec !== this.secCache) { this.secCache = sec; this.secText = formatSeconds(sec) + '.'; this.secBytes = this.enc.encode(this.secText); }
+      const fracOk = Number.isInteger(frac) && frac >= 0 && frac < 1e6;
+      const fracB = fracOk ? null : this.enc.encode(String(frac).padStart(6, '0'));
+      const x = b.x[i], y = b.y[i], z = b.z[i];
+      const gx = this.hasG ? this._gb(x) : null, gy = this.hasG ? this._gb(y) : null, gz = this.hasG ? this._gb(z) : null;
+      const fc = b.flag[i];
+      const flagB = fc < this.flagBytes.length ? this.flagBytes[fc] : this.enc.encode(',' + FLAG_NAMES[fc]).subarray(1);
+      const need = this.secBytes.length + (fracOk ? 6 : fracB.length) + 3 * 12 + (this.hasG ? 3 + gx.length + gy.length + gz.length : 0)
+        + 1 + flagB.length + (this.hasFilled ? 4 : 0) + 1;
+      if (pos + need > cap) {
+        if (pos > 0) { (parts ||= []).push(this.dec.decode(buf.subarray(0, pos))); pos = 0; }
+        if (need > cap) { (parts ||= []).push(this._rowString(b, i)); continue; }
+      }
+      buf.set(this.secBytes, pos); pos += this.secBytes.length;
+      if (fracOk) { let f = frac; for (let k = 5; k >= 0; k--) { buf[pos + k] = C_0 + (f % 10); f = Math.floor(f / 10); } pos += 6; }
+      else { buf.set(fracB, pos); pos += fracB.length; }
+      buf[pos++] = C_COMMA; pos = writeInt(buf, pos, x);
+      buf[pos++] = C_COMMA; pos = writeInt(buf, pos, y);
+      buf[pos++] = C_COMMA; pos = writeInt(buf, pos, z);
+      if (this.hasG) {
+        buf[pos++] = C_COMMA; buf.set(gx, pos); pos += gx.length;
+        buf[pos++] = C_COMMA; buf.set(gy, pos); pos += gy.length;
+        buf[pos++] = C_COMMA; buf.set(gz, pos); pos += gz.length;
+      }
+      buf[pos++] = C_COMMA; buf.set(flagB, pos); pos += flagB.length;
+      if (this.hasFilled) { buf[pos++] = C_COMMA; pos = writeInt(buf, pos, b.filled[i]); }
+      buf[pos++] = C_NL;
+    }
+    const last = this.dec.decode(buf.subarray(0, pos));
+    if (parts === null) return last;
+    parts.push(last);
+    return parts.join('');
+  }
+}
+
+// Decimal digits of an integer in the Int32 range (same text as `${v}`).
+function writeInt(buf, pos, v) {
+  if (v < 0) { buf[pos++] = C_MINUS; v = -v; }
+  if (v < 10) { buf[pos++] = C_0 + v; return pos; }
+  let len = 1; for (let t = v; t >= 10; t = Math.floor(t / 10)) len++;
+  for (let k = len - 1; k >= 0; k--) { buf[pos + k] = C_0 + (v % 10); v = Math.floor(v / 10); }
+  return pos + len;
+}
+
+function toCsv(header, batches, opts = {}) {
+  const f = new CsvFormatter(header, opts);
+  let s = f.headerLine();
+  for (const b of batches) s += f.batch(b);
+  return s;
+}
+
+// Sidecar JSON object. Never contains METADATA values, the file name or the
+// full serial. Every run-dependent value is under the single key run_info
+// (STAGE5_2_BRIEF §8), supplied by the caller.
+function buildSidecar(result, opts = {}) {
+  const sc = JSON.parse(JSON.stringify(result.sidecar, (k, v) => (typeof v === 'bigint' ? v.toString() : v)));
+  if (opts.runInfo !== undefined) sc.run_info = opts.runInfo;
+  return sc;
+}
+
+// "Found in this file" panel entries (local display only, never exported).
+function privacyPanel(result) {
+  return (result.privacy || []).map((i) => ({ source: i.source, field: i.field, value: i.value }));
+}
+
+// S58-END-MODULE format.js
+return Object.assign(__s58x, { gFull, g3AwayFromZero, formatMicrosNumber, CsvFormatter, toCsv, buildSidecar, privacyPanel });
+})();
+__s58m['random_access.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE random_access.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// S5.5c (parser_s5d): random-access entry point. Environment-neutral: the caller supplies
+// read(offset, length) -> Uint8Array (or a Promise of one) and the total input size; no file path and no
+// Node-only API is used, so the same code runs in Node (fs positioned reads) and in a browser (File.slice).
+//
+// Method (both allowed techniques of the brief, combined):
+//  1. zip directory: the end record and central directory (read from the end of the input) give every
+//     member's name and offset; info.txt is read from its offset and inflated first. If the input is gzip,
+//     or has no usable central directory, a bounded first pass over the input (members other than info.txt
+//     are skipped, not decompressed) finds info.txt and the member names instead.
+//  2. one sequential pass over the whole input through the same push() path as the one-pass API, in reads of
+//     at most opts.readBytes (default 1 MiB), so every member is CRC-checked and listed in container exactly
+//     as push() does. Because info.txt is known before any data member arrives, no member is ever held whole,
+//     whichever order the members appear in.
+// If the read-ahead fails in any way, it is skipped and the sequential pass behaves exactly like push().
+
+const { Gt3xParser } = __s58m['gt3x.js'];
+const { ZipStream, Inflater } = __s58m['zip.js'];
+
+const DEFAULT_READ_BYTES = 1 << 20;
+
+function u16(b, o) { return b[o] | (b[o + 1] << 8); }
+function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+
+function reader(read, maxRead) {
+  return async (off, len) => {
+    if (len <= maxRead) { let b = await read(off, len); if (!(b instanceof Uint8Array)) b = new Uint8Array(b); if (b.length !== len) throw new Error(`read(${off}, ${len}) returned ${b.length} bytes`); return b; }
+    const out = new Uint8Array(len); let o = 0;
+    while (o < len) {
+      const k = Math.min(maxRead, len - o);
+      let b = await read(off + o, k);
+      if (!(b instanceof Uint8Array)) b = new Uint8Array(b);
+      if (b.length !== k) throw new Error(`read(${off + o}, ${k}) returned ${b.length} bytes`);
+      out.set(b, o); o += k;
+    }
+    return out;
+  };
+}
+
+// Reads the zip directory and the stored bytes of info.txt. Returns
+// { ok: true, names, info: { method, comp } | null } or { ok: false, gzip }.
+// The reads it makes depend only on the input bytes (used by the memory no-op to repeat them).
+async function readZipDirectory(read, size, maxRead = DEFAULT_READ_BYTES) {
+  const rd = reader(read, maxRead);
+  if (size < 22) return { ok: false, gzip: false };
+  const head = await rd(0, 4);
+  if (head[0] === 0x1F && head[1] === 0x8B) return { ok: false, gzip: true };
+  const tl = Math.min(size, 22 + 65535);
+  const tail = await rd(size - tl, tl);
+  let q = -1;
+  for (let k = tl - 22; k >= 0; k--) if (u32(tail, k) === 0x06054b50 && k + 22 + u16(tail, k + 20) === tl) { q = k; break; }
+  if (q < 0) return { ok: false, gzip: false };
+  if (q >= 20 && u32(tail, q - 20) === 0x07064b50) return { ok: false, gzip: false };
+  const n = u16(tail, q + 10), cdLen = u32(tail, q + 12), cdOff = u32(tail, q + 16);
+  const eocdAbs = size - tl + q;
+  if (n === 0xFFFF || cdLen === 0xFFFFFFFF || cdOff === 0xFFFFFFFF || cdOff + cdLen > eocdAbs) return { ok: false, gzip: false };
+  const cd = cdOff >= size - tl ? tail.subarray(cdOff - (size - tl), cdOff - (size - tl) + cdLen) : await rd(cdOff, cdLen);
+  const ents = []; let p = 0;
+  while (p + 46 <= cd.length && u32(cd, p) === 0x02014b50) {
+    const flags = u16(cd, p + 8), method = u16(cd, p + 10), cs = u32(cd, p + 20), us = u32(cd, p + 24);
+    const nl = u16(cd, p + 28), el = u16(cd, p + 30), cl = u16(cd, p + 32), lho = u32(cd, p + 42);
+    if (flags & 1 || cs === 0xFFFFFFFF || us === 0xFFFFFFFF || lho === 0xFFFFFFFF) return { ok: false, gzip: false };
+    ents.push({ name: new TextDecoder('utf-8').decode(cd.subarray(p + 46, p + 46 + nl)), method, cs, lho });
+    p += 46 + nl + el + cl;
+  }
+  if (ents.length !== n) return { ok: false, gzip: false };
+  const ie = ents.find((e) => e.name === 'info.txt');
+  let info = null;
+  if (ie && (ie.method === 0 || ie.method === 8) && ie.lho + 30 <= size) {
+    const lh = await rd(ie.lho, 30);
+    if (u32(lh, 0) === 0x04034b50) {
+      const ds = ie.lho + 30 + u16(lh, 26) + u16(lh, 28);
+      if (ds + ie.cs <= size) info = { method: ie.method, comp: await rd(ds, ie.cs) };
+    }
+  }
+  return { ok: true, names: ents.map((e) => e.name), info };
+}
+
+async function inflateRaw(bytes) {
+  const out = []; let len = 0;
+  const inf = new Inflater('deflate-raw', (b) => { out.push(b.slice()); len += b.length; });
+  await inf.write(bytes.slice()); await inf.close();
+  const r = new Uint8Array(len); let o = 0; for (const c of out) { r.set(c, o); o += c.length; }
+  return r;
+}
+
+// First pass for gzip input or a zip without a usable directory: captures info.txt and member names only.
+async function capturePass(rd, size, readBytes, sliceBytes) {
+  const cap = { names: [], info: null };
+  const sink = { memberStart: (entry) => {
+    cap.names.push(entry.name);
+    if (entry.name !== 'info.txt' || cap.info !== null) return null;
+    const ch = []; let l = 0;
+    return { data: (b) => { ch.push(b.slice()); l += b.length; },
+      end: () => { const r = new Uint8Array(l); let o = 0; for (const c of ch) { r.set(c, o); o += c.length; } cap.info = r; } };
+  } };
+  try {
+    const zs = new ZipStream(sink, sliceBytes);
+    let gz = null;
+    for (let off = 0; off < size; off += readBytes) {
+      const b = await rd(off, Math.min(readBytes, size - off));
+      if (off === 0 && b.length >= 2 && b[0] === 0x1F && b[1] === 0x8B) gz = new Inflater('gzip', (x) => zs.push(x));
+      for (let o = 0; o < b.length; o += sliceBytes) { const piece = b.subarray(o, Math.min(b.length, o + sliceBytes)); if (gz) await gz.write(piece.slice()); else await zs.push(piece); }
+    }
+    if (gz) await gz.close();
+    await zs.end();
+  } catch { /* the sequential pass reports any error exactly as push() does */ }
+  return cap;
+}
+
+// S5.5d: each read is handed to the parser in pieces of at most FEED_PIECE_BYTES, with one timer-task yield
+// (setTimeout 0) after each piece, so a host that writes the CSV text asynchronously can complete those writes while
+// the parser works through one read: the output pending at once is bounded by one piece's output, not one read's.
+// The reads themselves (offsets, lengths, order) are unchanged and the output does not depend on the piece size.
+// opts.feedPieceBytes (integer >= 0) overrides the piece size; 0 hands each read whole with no yield (S5.5c behaviour).
+const FEED_PIECE_BYTES = 8192;
+function resolveFeedPiece(v) {
+  if (v === undefined) return FEED_PIECE_BYTES;
+  if (!Number.isInteger(v) || v < 0) throw new Error('feedPieceBytes must be an integer >= 0');
+  return v;
+}
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+// The random-access entry point. source = { read(offset, length), size }. opts = createParser options plus
+// readBytes (largest read requested; default 1 MiB). Returns the same result object as push()/end().
+async function parseRandomAccess(source, opts = {}) {
+  const { read, size } = source;
+  if (typeof read !== 'function' || !Number.isInteger(size) || size < 0) throw new Error('parseRandomAccess needs { read(offset, length), size }');
+  const readBytes = opts.readBytes === undefined ? DEFAULT_READ_BYTES : opts.readBytes;
+  const piece = resolveFeedPiece(opts.feedPieceBytes);
+  if (!Number.isInteger(readBytes) || readBytes < 1) throw new Error('readBytes must be an integer >= 1');
+  const p = new Gt3xParser(opts);
+  p.randomAccess = true; // S5.5d: the entry point never holds a member
+  const rd = reader(read, readBytes);
+  let infoBytes = null, names = null;
+  try {
+    const dir = await readZipDirectory(read, size, readBytes);
+    if (dir.ok) {
+      names = dir.names;
+      if (dir.info) infoBytes = dir.info.method === 8 ? await inflateRaw(dir.info.comp) : dir.info.comp;
+    } else {
+      const cap = await capturePass(rd, size, readBytes, p.sliceBytes);
+      names = cap.names; infoBytes = cap.info;
+    }
+  } catch { infoBytes = null; }
+  if (infoBytes !== null) {
+    try { p.preloadInfo(infoBytes, { logPresent: names.includes('log.bin') }); } catch { /* left to the sequential pass */ }
+  }
+  for (let off = 0; off < size; off += readBytes) {
+    const b = await rd(off, Math.min(readBytes, size - off));
+    if (piece === 0) { await p.push(b); continue; }
+    for (let o = 0; o < b.length; o += piece) { await p.push(b.subarray(o, Math.min(b.length, o + piece))); await tick(); }
+  }
+  return p.end();
+}
+
+// S58-END-MODULE random_access.js
+return Object.assign(__s58x, { DEFAULT_READ_BYTES, readZipDirectory, FEED_PIECE_BYTES, parseRandomAccess });
+})();
+__s58m['index.js'] = (function () {
+'use strict';
+const __s58x = {};
+function __s58re(m, pairs) { if (pairs === null) { for (const k of Object.keys(m)) { if (k !== 'default') __s58x[k] = m[k]; } } else { for (const [a, b] of pairs) __s58x[b] = m[a]; } }
+// S58-BEGIN-MODULE index.js
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+__s58re(__s58m['gt3x.js'], null);
+__s58re(__s58m['random_access.js'], [['parseRandomAccess', 'parseRandomAccess'], ['readZipDirectory', 'readZipDirectory'], ['DEFAULT_READ_BYTES', 'DEFAULT_READ_BYTES'], ['FEED_PIECE_BYTES', 'FEED_PIECE_BYTES']]); // S5.5c; S5.5d FEED_PIECE_BYTES
+__s58re(__s58m['format.js'], null);
+__s58re(__s58m['crc32.js'], [['crc32', 'crc32'], ['crc32Update', 'crc32Update']]);
+__s58re(__s58m['decode.js'], [['unpack12', 'unpack12'], ['unpackInt16', 'unpackInt16'], ['sspDecode', 'sspDecode'], ['recordChecksum', 'recordChecksum'], ['parseHex', 'parseHex'], ['hex', 'hex']]);
+__s58re(__s58m['time.js'], [['formatSeconds', 'formatSeconds'], ['formatInstant', 'formatInstant'], ['formatTicks', 'formatTicks'], ['ticksToUnix', 'ticksToUnix'], ['parseDecimal', 'parseDecimal'], ['parseUtcOffset', 'parseUtcOffset']]);
+__s58re(__s58m['info.js'], [['parseInfo', 'parseInfo']]);
+__s58re(__s58m['records.js'], [['LogScanner', 'LogScanner'], ['typeName', 'typeName'], ['hexType', 'hexType'], ['sizeFits', 'sizeFits'], ['TYPE_NAMES', 'TYPE_NAMES']]);
+__s58re(__s58m['zip.js'], [['ZipStream', 'ZipStream'], ['ContainerError', 'ContainerError'], ['MSG_NOT_ZIP', 'MSG_NOT_ZIP']]);
+
+// S58-END-MODULE index.js
+return Object.assign(__s58x, {  });
+})();
+// S58-WORKER-ENTRY
+// S5.8 worker entry (Apache-2.0). Runs inside the classic blob worker, after the bundled parser_s5e modules.
+// Every local file is read with File.slice(...).arrayBuffer() through parseRandomAccess; the CSV text is the parser's
+// own CsvFormatter output and the sidecar is the parser's own sidecar. The UI adds no fill logic of its own.
+(function () {
+'use strict';
+const P = __s58m['index.js'];
+const DEFAULT_READ_BYTES = 65536;     // the UI's read size (the frozen wrapper also reads 64 KiB)
+const PENDING_BOUND = 4194304;        // R3: the read callback waits while more than 4 MiB of CSV text is not yet written
+const FLUSH_CHARS = 262144;           // CSV text is posted to the page in pieces of about 256 KiB
+const CHART_BINS = 4000;              // R6: at most 4,000 time bins per axis
+const SAMPLE_ROWS = 10000;            // size estimate: bytes per row measured on the first 10,000 rows
+const QUARTER_SECONDS = 21600;        // 6-hour part key (device-local seconds)
+
+let pending = 0;
+let wake = null;
+
+// Bounded min/max envelope over time. Bin width starts at 1 s and doubles (merging pairs) whenever the data would
+// need more than CHART_BINS bins, so memory does not grow with file length.
+class Envelope {
+  constructor(n) {
+    this.n = n; this.t0 = null; this.w = 1; this.used = 0;
+    this.mn = [new Float64Array(n).fill(Infinity), new Float64Array(n).fill(Infinity), new Float64Array(n).fill(Infinity)];
+    this.mx = [new Float64Array(n).fill(-Infinity), new Float64Array(n).fill(-Infinity), new Float64Array(n).fill(-Infinity)];
+    this.meas = new Uint8Array(n);
+    this.fill = new Uint8Array(n);
+  }
+  merge() {
+    const h = this.n / 2;
+    for (let i = 0; i < h; i++) {
+      const j = 2 * i, k = j + 1;
+      for (let a = 0; a < 3; a++) {
+        this.mn[a][i] = Math.min(this.mn[a][j], this.mn[a][k]);
+        this.mx[a][i] = Math.max(this.mx[a][j], this.mx[a][k]);
+      }
+      this.meas[i] = this.meas[j] | this.meas[k];
+      this.fill[i] = this.fill[j] | this.fill[k];
+    }
+    for (let i = h; i < this.n; i++) {
+      for (let a = 0; a < 3; a++) { this.mn[a][i] = Infinity; this.mx[a][i] = -Infinity; }
+      this.meas[i] = 0; this.fill[i] = 0;
+    }
+    this.w *= 2;
+    this.used = Math.ceil(this.used / 2);
+  }
+  index(sec) {
+    if (this.t0 === null) this.t0 = sec;
+    let d = sec - this.t0;
+    if (d < 0) d = 0;
+    while (Math.floor(d / this.w) >= this.n) this.merge();
+    const i = Math.floor(d / this.w);
+    if (i + 1 > this.used) this.used = i + 1;
+    return i;
+  }
+  add(b, scale) {
+    if (!b || b.n === 0) return;
+    const i = this.index(b.second);
+    const xs = b.x, ys = b.y, zs = b.z, fl = b.flag;
+    const mn = this.mn, mx = this.mx;
+    let anyMeas = false, anyFill = false;
+    for (let r = 0; r < b.n; r++) {
+      const f = fl[r];
+      if (f === 2 || f === 3) { anyFill = true; continue; }
+      anyMeas = true;
+      const x = xs[r] / scale, y = ys[r] / scale, z = zs[r] / scale;
+      if (x < mn[0][i]) mn[0][i] = x; if (x > mx[0][i]) mx[0][i] = x;
+      if (y < mn[1][i]) mn[1][i] = y; if (y > mx[1][i]) mx[1][i] = y;
+      if (z < mn[2][i]) mn[2][i] = z; if (z > mx[2][i]) mx[2][i] = z;
+    }
+    if (anyMeas) this.meas[i] = 1;
+    if (anyFill) this.fill[i] = 1;
+  }
+  toJSON() {
+    const u = this.used;
+    const arr = (t) => Array.from(t.subarray(0, u), (v) => (Number.isFinite(v) ? v : null));
+    return {
+      t0: this.t0, bin_seconds: this.w, bins: u, max_bins: this.n,
+      min: [arr(this.mn[0]), arr(this.mn[1]), arr(this.mn[2])],
+      max: [arr(this.mx[0]), arr(this.mx[1]), arr(this.mx[2])],
+      measured: Array.from(this.meas.subarray(0, u)), filled: Array.from(this.fill.subarray(0, u)),
+    };
+  }
+}
+
+function scaleOf(h) { return h && h.scale && h.scale.value ? h.scale.value : 1; }
+function unitsOf(h) { return h && h.scale && h.scale.value ? 'g' : 'counts'; }
+
+function makeRead(file, throttle, flush) {
+  let lastPost = 0;
+  return async (offset, length) => {
+    if (throttle) {
+      flush();
+      while (pending > PENDING_BOUND) await new Promise((r) => { wake = r; });
+    }
+    const ab = await file.slice(offset, offset + length).arrayBuffer();
+    const now = Date.now();
+    if (now - lastPost > 200) { lastPost = now; postMessage({ type: 'progress', done: offset + length, total: file.size }); }
+    return new Uint8Array(ab);
+  };
+}
+
+function sidecarOf(res) {
+  return res && res.sidecar ? P.buildSidecar(res) : null;
+}
+
+async function analyse(file, opt) {
+  const env = new Envelope(CHART_BINS);
+  let header = null, fmt = null, scale = 1, sampleRows = 0, sampleChars = 0, headerChars = 0;
+  const quarters = new Map();
+  const res = await P.parseRandomAccess({ read: makeRead(file, false, null), size: file.size }, {
+    fillMode: 'none', readBytes: opt.readBytes || DEFAULT_READ_BYTES, feedPieceBytes: opt.feedPieceBytes,
+    onStart: (h) => { header = h; fmt = new P.CsvFormatter(h); headerChars = fmt.headerLine().length; scale = scaleOf(h); },
+    onBatch: (b) => {
+      env.add(b, scale);
+      const q = Math.floor(b.second / QUARTER_SECONDS);
+      quarters.set(q, (quarters.get(q) || 0) + b.n);
+      if (sampleRows < SAMPLE_ROWS && b.n > 0) { sampleChars += fmt.batch(b).length; sampleRows += b.n; }
+    },
+  });
+  postMessage({
+    type: 'analysed', ok: !!res.ok, error: res.error || null, sidecar: sidecarOf(res),
+    privacy: res.ok ? P.privacyPanel(res) : [],
+    chart: env.toJSON(), units: unitsOf(header), columns: header ? header.columns : null,
+    quarters: Array.from(quarters.entries()), bytesPerRow: sampleRows ? sampleChars / sampleRows : null, headerChars,
+    fillHelp: { zero: P.FILL_ZERO_HELP, carry_last: P.FILL_CARRY_HELP },
+    noRawMessage: P.MSG_NO_RAW,
+  });
+}
+
+async function exportRun(file, fillMode, opt, withCsv) {
+  const env = new Envelope(CHART_BINS);
+  let fmt = null, scale = 1, buf = [], bufChars = 0, bufQ, bufHas = false, rows = 0, chars = 0;
+  const flush = () => {
+    if (!bufHas) return;
+    const text = buf.join('');
+    buf = []; bufChars = 0; bufHas = false;
+    pending += text.length;
+    postMessage({ type: 'csv', text, q: bufQ });
+  };
+  const emit = (text, q) => {
+    if (bufHas && q !== bufQ) flush();
+    bufQ = q; buf.push(text); bufChars += text.length; bufHas = true; chars += text.length;
+    if (bufChars >= FLUSH_CHARS) flush();
+  };
+  const res = await P.parseRandomAccess({ read: makeRead(file, withCsv, flush), size: file.size }, {
+    fillMode, readBytes: opt.readBytes || DEFAULT_READ_BYTES, feedPieceBytes: opt.feedPieceBytes,
+    onStart: (h) => { fmt = new P.CsvFormatter(h); scale = scaleOf(h); if (withCsv) emit(fmt.headerLine(), null); },
+    onBatch: (b) => {
+      env.add(b, scale);
+      rows += b.n;
+      if (withCsv) emit(fmt.batch(b), Math.floor(b.second / QUARTER_SECONDS));
+    },
+  });
+  flush();
+  const sc = sidecarOf(res);
+  postMessage({
+    type: 'exported', ok: !!res.ok, error: res.error || null, fillMode,
+    sidecarJson: sc ? JSON.stringify(sc) : null, rows, chars, chart: env.toJSON(), csv: withCsv,
+  });
+}
+
+self.onmessage = (ev) => {
+  const m = ev.data;
+  if (m.cmd === 'ack') {
+    pending -= m.n;
+    if (wake && pending <= PENDING_BOUND) { const w = wake; wake = null; w(); }
+    return;
+  }
+  const opt = m.opt || {};
+  const run = m.cmd === 'analyse' ? analyse(m.file, opt)
+    : m.cmd === 'export' ? exportRun(m.file, m.fillMode, opt, !!m.csv)
+      : Promise.reject(new Error('unknown command'));
+  run.catch((e) => postMessage({ type: 'error', message: e && e.message ? e.message : String(e) }));
+};
+})();
+</script>
+<script>// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 the gt3x browser reader authors.
+// S5.8 page script. Pass 1 (census, coverage, gap report, size estimate, chart) and pass 2 (export) each read the
+// file again through File.slice in the worker. Samples are never held in memory; the chart is a bounded envelope.
+(function () {
+'use strict';
+const $ = (id) => document.getElementById(id);
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const PART_LIMIT = 268435456;          // R8: each part's Blob is at most 256 MiB
+const PLAIN_PART_MAX = 33554432;       // S5.10: finish a plain-CSV part at 32 MiB (see brief §1)
+// S5.11: without the picker, each file is saved by the user's own tap on its Save button (STAGE5_11_BRIEF_v1).
+const QUARTER = 21600, DAY = 86400;
+const CAPTION = 'Fills are estimates, not measured data.';
+const OPTION_B = 'The window end follows Option B, the end rule documented with the parser.';
+const COVERAGE_SENTENCE = 'Coverage shows where the file has data; it is not wear time, sleep, or activity.';
+const OLD_FORMAT_TEXT = 'Gaps not detectable in this format';
+const NO_RAW_TEXT = 'No raw acceleration records in this file';
+const CHROMIUM_HINT = 'Use a Chromium-based browser (it can save straight to disk) for this file.';
+
+// Tuning options in the address fragment (they never raise a limit): read=N (read size, 1 to 1048576 bytes),
+// feed=N (the parser's feedPieceBytes, 0 to 1048576), part-limit=N (a lower part limit, below 256 MiB).
+function options() {
+  const o = { readBytes: 65536, feedPieceBytes: undefined, partLimit: PART_LIMIT };
+  for (const kv of location.hash.replace(/^#/, '').split('&')) {
+    const i = kv.indexOf('=');
+    if (i < 0) continue;
+    const k = kv.slice(0, i), n = Number(kv.slice(i + 1));
+    if (!Number.isInteger(n)) continue;
+    if (k === 'read' && n >= 1 && n <= 1048576) o.readBytes = n;
+    if (k === 'feed' && n >= 0 && n <= 1048576) o.feedPieceBytes = n;
+    if (k === 'part-limit' && n >= 1 && n < PART_LIMIT) o.partLimit = n;
+  }
+  return o;
+}
+
+let worker = null, workerUrl = null, file = null, analysed = null, sidecarJson = null, busy = false;
+
+function setState(s) { document.body.dataset.s58state = s; }
+function status(t) { $('s58-status').textContent = t; }
+function progress(done, total) { const p = $('s58-progress'); p.max = total > 0 ? total : 1; p.value = Math.min(done, p.max); }
+function el(tag, attrs, text) {
+  const e = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined && text !== null) e.textContent = String(text);
+  return e;
+}
+function clear(e) { while (e.firstChild) e.firstChild.remove(); return e; }
+function fmtBytes(n) { return n >= 1e9 ? (n / 1e9).toFixed(2) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? (n / 1e3).toFixed(1) + ' kB' : n + ' B'; }
+function secText(s) { return new Date(s * 1000).toISOString().slice(0, 19); }
+function table(id, caption, head, rows) {
+  const t = el('table', { id });
+  t.appendChild(el('caption', null, caption));
+  const thead = el('thead'), tr = el('tr');
+  for (const h of head) tr.appendChild(el('th', { scope: 'col' }, h));
+  thead.appendChild(tr); t.appendChild(thead);
+  const tb = el('tbody');
+  for (const r of rows) { const rr = el('tr'); for (const c of r) rr.appendChild(el('td', null, c)); tb.appendChild(rr); }
+  t.appendChild(tb);
+  return t;
+}
+
+function newWorker() {
+  if (worker) worker.terminate();
+  if (!workerUrl) workerUrl = URL.createObjectURL(new Blob([$('s58-worker').textContent], { type: 'text/javascript' }));
+  worker = new Worker(workerUrl);
+}
+
+class PartRefused extends Error {}
+
+// Runs one worker command. CSV pieces are written to the sink one at a time, in order; each write is acknowledged
+// to the worker, whose read callback waits while too much text is unwritten (R3).
+function runWorker(msg, sink) {
+  return new Promise((resolve, reject) => {
+    let chain = Promise.resolve(), failed = null, ended = false;
+    const stop = (e) => { if (ended) return; ended = true; failed = e; if (worker) { worker.terminate(); worker = null; } reject(e); };
+    worker.onmessage = (ev) => {
+      const m = ev.data;
+      if (ended) return;
+      if (m.type === 'progress') { progress(m.done, m.total); return; }
+      if (m.type === 'csv') {
+        chain = chain.then(async () => {
+          if (failed) return;
+          try { await sink.write(m.text, m.q); } catch (e) { stop(e); return; }
+          if (worker) worker.postMessage({ cmd: 'ack', n: m.text.length });
+        });
+        return;
+      }
+      if (m.type === 'error') { chain.then(() => stop(new Error(m.message))); return; }
+      chain.then(() => { if (!failed && !ended) { ended = true; resolve(m); } });
+    };
+    worker.onerror = (e) => { e.preventDefault(); stop(new Error(e.message || 'the worker stopped')); };
+    worker.postMessage(msg);
+  });
+}
+
+function showError(kind, message) {
+  $('s58-error').hidden = false;
+  $('s58-error-kind').textContent = kind;
+  $('s58-error-message').textContent = message;
+  document.body.dataset.s58errorKind = kind;
+}
+
+function resetUi() {
+  for (const id of ['s58-error', 's58-report', 's58-chart-section', 's58-export', 's58-privacy']) $(id).hidden = true;
+  for (const id of ['s58-report-body', 's58-chart', 's58-chart-alt', 's58-caption-slot', 's58-privacy-body']) clear($(id));
+  clearSaves();
+  delete document.body.dataset.s58errorKind;
+  $('s58-fill-none').checked = true;
+  $('s58-fill-help').hidden = true;
+  $('s58-sidecar-btn').disabled = true;
+  $('s58-preview').disabled = true;
+  analysed = null; sidecarJson = null;
+  progress(0, 1);
+}
+
+async function openFile(f) {
+  if (busy) return;
+  busy = true;
+  resetUi();
+  file = f;
+  setState('analysing');
+  status('Reading the file (pass 1: coverage, gap report and chart).');
+  try {
+    newWorker();
+    const r = await runWorker({ cmd: 'analyse', file: f, opt: options() }, null);
+    if (!r.ok) {
+      const kind = r.error && r.error.kind ? r.error.kind : 'refused';
+      showError(kind, r.error && r.error.message ? r.error.message : 'The parser refused this file.');
+      status('This file could not be read: ' + kind + '. No export is offered.');
+      setState('refused');
+      return;
+    }
+    analysed = r;
+    renderReport(r.sidecar, r);
+    renderChart(r.chart, r.units, false);
+    renderPrivacy(r.privacy);
+    $('s58-export').hidden = false;
+    updateEstimate();
+    status('Ready: ' + r.sidecar.rows + ' rows decoded. Choose a fill (optional) and export.');
+    setState('ready');
+  } catch (e) {
+    showError('unexpected', e && e.message ? e.message : String(e));
+    status('The file could not be read.');
+    setState('refused');
+  } finally {
+    busy = false;
+  }
+}
+
+function renderReport(sc, r) {
+  const body = clear($('s58-report-body'));
+  const w = sc.window || {};
+  body.appendChild(el('h3', null, 'Expected window'));
+  body.appendChild(table('s58-window', 'Expected window (from the file\'s own dates)', ['Item', 'Value'], [
+    ['Start', w.start_text ?? ''], ['End (exclusive)', w.end_text ?? ''], ['End source (window.end_source)', w.end_source ?? ''],
+    ['Window invalid', String(!!w.invalid)],
+  ]));
+  body.appendChild(el('p', { id: 's58-option-b' }, OPTION_B));
+  const dow = sc.data_outside_window || {};
+  body.appendChild(el('p', { id: 's58-outside' }, `Records before the window: ${dow.before ?? 0} data second(s) (${dow.before_samples ?? 0} samples). Records after the window: ${dow.after ?? 0} data second(s) (${dow.after_samples ?? 0} samples). They are exported as stored.`));
+  if (sc.format === 'old') body.appendChild(el('p', { id: 's58-old-format', class: 'caption' }, OLD_FORMAT_TEXT));
+  if (sc.rows_decoded === 0) body.appendChild(el('p', { id: 's58-no-raw', class: 'caption' }, NO_RAW_TEXT));
+  body.appendChild(el('h3', null, 'Missing time (gaps)'));
+  const runs = sc.runs || [];
+  body.appendChild(table('s58-gaps', 'Gap time: runs of missing time inside or around the window', ['Kind', 'Start', 'Duration (s)', 'Missing samples'],
+    runs.map((x) => [x.kind, x.start_text, String(x.n_seconds), String(x.n_missing_samples)])));
+  body.appendChild(el('h3', null, 'Idle sleep'));
+  const idle = sc.idle_sleep || [];
+  body.appendChild(table('s58-idle', 'Idle-sleep time (device asleep; listed separately, not counted as missing data)', ['Kind', 'Start', 'Duration (s)', 'Missing samples'],
+    idle.map((x) => [x.kind, x.start_text, String(x.n_seconds), String(x.n_missing_samples)])));
+  body.appendChild(el('h3', null, 'Integrity'));
+  const ig = sc.integrity || {};
+  body.appendChild(table('s58-integrity', 'Integrity counts', ['Count', 'Value'], [
+    ['Damaged, skipped, truncated, unknown or unmatched records', String((ig.records || []).length)],
+    ['Trailing zero bytes', String(ig.trailing_zero_bytes ?? 0)],
+    ['Non-increasing record times', String(ig.non_increasing ?? 0)],
+    ['Out-of-range values', String(ig.out_of_range ?? 0)],
+    ['Zip CRC mismatches', String((ig.zip_crc_mismatch || []).length)],
+  ]));
+  body.appendChild(el('h3', null, 'Summary'));
+  body.appendChild(table('s58-summary', 'File summary (from the parser sidecar)', ['Item', 'Value'], [
+    ['Format', `${sc.format} (${sc.data_member})`], ['Device family (serial prefix only)', sc.serial_prefix ?? ''],
+    ['Sample rate (Hz)', sc.rate ? String(sc.rate.used) : ''], ['Scale (counts per g)', sc.scale ? `${sc.scale.value ?? 'none'} (${sc.scale.source})` : ''],
+    ['Rows decoded', String(sc.rows_decoded)], ['Data seconds', String(sc.data_seconds)],
+    ['Firmware 1.6.0 correction', sc.fw160 ? `applies: ${sc.fw160.applies}; applied: ${sc.fw160.applied}` : ''],
+    ['Warnings and messages', [...((sc.warnings && sc.warnings.items) || []).map((x) => (typeof x === 'string' ? x : JSON.stringify(x))), ...(sc.messages || []).map((x) => (typeof x === 'string' ? x : JSON.stringify(x)))].join('; ')],
+  ]));
+  body.appendChild(el('h3', null, 'Coverage'));
+  if (sc.coverage && sc.coverage.text) body.appendChild(el('p', { class: 'pre', id: 's58-coverage-text' }, sc.coverage.text));
+  body.appendChild(el('p', { id: 's58-coverage-sentence', class: 'caption' }, COVERAGE_SENTENCE));
+  $('s58-report').hidden = false;
+}
+
+function renderPrivacy(items) {
+  const b = clear($('s58-privacy-body'));
+  if (!items || items.length === 0) b.appendChild(el('p', null, 'Nothing identifying was found in this file.'));
+  else b.appendChild(table('s58-privacy-table', 'Identifying fields found in this file (never written to the CSV or the sidecar)', ['Where', 'Field', 'Value'],
+    items.map((i) => [String(i.source), String(i.field), String(i.value)])));
+  b.appendChild(el('p', { class: 'hint' }, 'File names can identify people. The outputs never contain the file name.'));
+  $('s58-privacy').hidden = false;
+}
+
+function svg(tag, attrs) { const e = document.createElementNS(SVG_NS, tag); if (attrs) for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v)); return e; }
+
+// R6: x, y, z over time as a min/max envelope per bin; filled spans hatched (pattern), never by colour alone.
+function renderChart(c, units, showFill) {
+  const host = clear($('s58-chart'));
+  const alt = clear($('s58-chart-alt'));
+  const slot = clear($('s58-caption-slot'));
+  $('s58-chart-section').hidden = false;
+  const W = 960, PH = 110, GAP = 18, L = 70, R = 10, T = 24, LEG = 46;
+  const H = T + 3 * PH + 2 * GAP + LEG + 26;
+  const s = svg('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-labelledby': 's58-chart-title', id: 's58-chart-svg' });
+  const title = svg('title', { id: 's58-chart-title' });
+  title.textContent = `x, y and z (${units}) over time, minimum and maximum per time bin` + (showFill ? '; filled spans hatched' : '');
+  s.appendChild(title);
+  const defs = svg('defs');
+  const pat = svg('pattern', { id: 's58-hatch', patternUnits: 'userSpaceOnUse', width: 8, height: 8, patternTransform: 'rotate(45)' });
+  pat.appendChild(svg('rect', { width: 8, height: 8, fill: '#ffffff' }));
+  pat.appendChild(svg('line', { x1: 0, y1: 0, x2: 0, y2: 8, stroke: '#8a5a00', 'stroke-width': 3 }));
+  defs.appendChild(pat);
+  s.appendChild(defs);
+  const n = c.bins || 0;
+  s.dataset.bins = String(n);
+  s.dataset.binSeconds = String(c.bin_seconds);
+  s.dataset.maxBins = String(c.max_bins);
+  let filledBins = 0;
+  const axes = ['x', 'y', 'z'], colours = ['#1d4f91', '#1a6b2f', '#8f1d1d'], dashes = ['', '6 3', '2 3'];
+  const pw = W - L - R;
+  for (let a = 0; a < 3; a++) {
+    const top = T + a * (PH + GAP);
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < n; i++) { if (c.measured[i]) { lo = Math.min(lo, c.min[a][i]); hi = Math.max(hi, c.max[a][i]); } }
+    if (!Number.isFinite(lo)) { lo = -1; hi = 1; }
+    if (hi === lo) { hi += 0.5; lo -= 0.5; }
+    const yOf = (v) => top + PH - ((v - lo) / (hi - lo)) * PH;
+    const xOf = (i) => L + (n > 0 ? (i / n) * pw : 0);
+    s.appendChild(svg('rect', { x: L, y: top, width: pw, height: PH, fill: 'none', stroke: '#767676' }));
+    const lab = svg('text', { x: 6, y: top + PH / 2, 'font-size': 13, fill: '#1a1a1a' }); lab.textContent = `${axes[a]} (${units})`; s.appendChild(lab);
+    const hiT = svg('text', { x: 6, y: top + 12, 'font-size': 11, fill: '#4d4d4d' }); hiT.textContent = String(Number(hi.toPrecision(4))); s.appendChild(hiT);
+    const loT = svg('text', { x: 6, y: top + PH, 'font-size': 11, fill: '#4d4d4d' }); loT.textContent = String(Number(lo.toPrecision(4))); s.appendChild(loT);
+    if (showFill) {
+      for (let i = 0; i < n; i++) {
+        if (!c.filled[i]) continue;
+        let j = i; while (j + 1 < n && c.filled[j + 1]) j++;
+        s.appendChild(svg('rect', { x: xOf(i), y: top, width: Math.max(1, xOf(j + 1) - xOf(i)), height: PH, fill: 'url(#s58-hatch)', class: 's58-filled', 'data-axis': axes[a] }));
+        if (a === 0) filledBins += j - i + 1;
+        i = j;
+      }
+    }
+    let d = '';
+    for (let i = 0; i < n; i++) {
+      if (!c.measured[i]) continue;
+      let j = i; while (j + 1 < n && c.measured[j + 1]) j++;
+      let up = '', down = '';
+      for (let k = i; k <= j; k++) { up += `${k === i ? 'M' : 'L'}${xOf(k).toFixed(1)},${yOf(c.max[a][k]).toFixed(1)} L${xOf(k + 1).toFixed(1)},${yOf(c.max[a][k]).toFixed(1)} `; }
+      for (let k = j; k >= i; k--) { down += `L${xOf(k + 1).toFixed(1)},${yOf(c.min[a][k]).toFixed(1)} L${xOf(k).toFixed(1)},${yOf(c.min[a][k]).toFixed(1)} `; }
+      d += up + down + 'Z ';
+      i = j;
+    }
+    if (d) s.appendChild(svg('path', { d, fill: colours[a], 'fill-opacity': 0.35, stroke: colours[a], 'stroke-width': 1, 'stroke-dasharray': dashes[a], class: 's58-measured', 'data-axis': axes[a] }));
+  }
+  const ly = T + 3 * PH + 2 * GAP + 14;
+  if (n > 0 && c.t0 !== null) {
+    const t1 = svg('text', { x: L, y: ly, 'font-size': 12, fill: '#1a1a1a' }); t1.textContent = secText(c.t0); s.appendChild(t1);
+    const t2 = svg('text', { x: W - R, y: ly, 'font-size': 12, fill: '#1a1a1a', 'text-anchor': 'end' }); t2.textContent = secText(c.t0 + n * c.bin_seconds); s.appendChild(t2);
+  }
+  const lg = svg('g', { id: 's58-legend' });
+  const ly2 = ly + 18;
+  lg.appendChild(svg('rect', { x: L, y: ly2 - 10, width: 22, height: 12, fill: colours[0], 'fill-opacity': 0.35, stroke: colours[0] }));
+  const lt1 = svg('text', { x: L + 28, y: ly2, 'font-size': 12, fill: '#1a1a1a' });
+  lt1.textContent = 'Measured data: minimum to maximum per bin (x solid outline, y dashed, z dotted)';
+  lg.appendChild(lt1);
+  if (showFill) {
+    lg.appendChild(svg('rect', { x: L + 560, y: ly2 - 10, width: 22, height: 12, fill: 'url(#s58-hatch)', stroke: '#8a5a00', class: 's58-legend-filled' }));
+    const lt2 = svg('text', { x: L + 588, y: ly2, 'font-size': 12, fill: '#1a1a1a' });
+    lt2.textContent = 'Filled (estimate): hatched';
+    lg.appendChild(lt2);
+  }
+  s.appendChild(lg);
+  s.dataset.filledBins = String(filledBins);
+  host.appendChild(s);
+  // Text alternative: the gap and fill spans as a table.
+  const sc = analysed ? analysed.sidecar : null;
+  const spans = [];
+  if (sc) {
+    for (const x of sc.runs || []) spans.push([x.kind, x.start_text, String(x.n_seconds), String(x.n_missing_samples), 'gap']);
+    for (const x of sc.idle_sleep || []) spans.push([x.kind, x.start_text, String(x.n_seconds), String(x.n_missing_samples), 'idle sleep']);
+  }
+  const head = ['Kind', 'Start', 'Duration (s)', 'Missing samples', 'Type'];
+  if (showFill) { head.push('Fill shown'); for (const r of spans) r.push(String(binsFilledFor(c, r))); }
+  alt.appendChild(table('s58-chart-table', 'Chart text alternative: gap and fill spans', head, spans));
+  alt.appendChild(el('p', { class: 'hint' }, `${n} time bins of ${c.bin_seconds} s each (at most ${c.max_bins}).`));
+  if (showFill) slot.appendChild(el('p', { class: 'caption', id: 's58-caption' }, CAPTION));
+}
+
+function binsFilledFor(c, r) {
+  if (c.t0 === null) return 'no';
+  const sc = analysed.sidecar;
+  const all = [...(sc.runs || []), ...(sc.idle_sleep || [])];
+  const x = all.find((y) => y.start_text === r[1] && String(y.n_seconds) === r[2]);
+  if (!x) return 'no';
+  const i0 = Math.max(0, Math.floor((x.start_second - c.t0) / c.bin_seconds));
+  const i1 = Math.min(c.bins - 1, Math.floor((x.start_second + x.n_seconds - 1 - c.t0) / c.bin_seconds));
+  for (let i = i0; i <= i1; i++) if (c.filled[i]) return 'yes';
+  return 'no';
+}
+
+function chosenFill() {
+  for (const id of ['s58-fill-none', 's58-fill-carry', 's58-fill-zero']) if ($(id).checked) return $(id).value;
+  return 'none';
+}
+
+function fillRowsByDay(sc) {
+  const m = new Map();
+  for (const x of [...(sc.runs || []).filter((y) => y.kind === 'interior'), ...(sc.idle_sleep || [])]) {
+    if (!x.n_seconds) continue;
+    const per = x.n_missing_samples / x.n_seconds;
+    let s = x.start_second;
+    const e = x.start_second + x.n_seconds;
+    while (s < e) {
+      const d = Math.floor(s / DAY), de = Math.min(e, (d + 1) * DAY);
+      m.set(d, (m.get(d) || 0) + (de - s) * per);
+      s = de;
+    }
+  }
+  return m;
+}
+
+// Part plan (R8, no picker): one part per device-local day; a day whose estimated uncompressed size is over the
+// part limit is split into 6-hour parts. Estimates: rows x bytes per row measured on the first 10,000 rows.
+function partPlan(fillMode, limit) {
+  const bpr = analysed.bytesPerRow || 64;
+  const day = new Map(), quarter = new Map();
+  for (const [q, rows] of analysed.quarters) {
+    const d = Math.floor(q / 4);
+    day.set(d, (day.get(d) || 0) + rows * bpr);
+    quarter.set(q, (quarter.get(q) || 0) + rows * bpr);
+  }
+  if (fillMode !== 'none') for (const [d, rows] of fillRowsByDay(analysed.sidecar)) {
+    day.set(d, (day.get(d) || 0) + rows * bpr);
+    for (let k = 0; k < 4; k++) quarter.set(d * 4 + k, (quarter.get(d * 4 + k) || 0) + rows * bpr / 4);
+  }
+  const split = new Set();
+  for (const [d, b] of day) if (b > limit) split.add(d);
+  let maxQuarter = 0;
+  for (const [q, b] of quarter) if (split.has(Math.floor(q / 4))) maxQuarter = Math.max(maxQuarter, b);
+  return { key: (q) => { const d = Math.floor(q / 4); return split.has(d) ? 'q' + q : 'd' + d; }, splitDays: split.size, maxQuarter };
+}
+
+function updateEstimate() {
+  if (!analysed) return;
+  const sc = analysed.sidecar, f = chosenFill();
+  let rows = sc.rows;
+  if (f !== 'none') for (const [, r] of fillRowsByDay(sc)) rows += r;
+  const est = analysed.headerChars + rows * (analysed.bytesPerRow || 0);
+  const picker = typeof window.showSaveFilePicker === 'function';
+  let text = `Estimated CSV size: about ${fmtBytes(Math.round(est))} (${Math.round(rows)} rows; bytes per row measured on the first 10,000 rows). `
+    + (picker ? 'This browser saves straight to disk.' : 'This browser cannot save straight to disk: the export is made in per-day parts (6-hour parts for a large day), each at most 32 MiB as plain CSV or 256 MiB when gzip is checked. Each part gets its own Save button; the next part is made after you tap it.');
+  let multi = false;
+  if (!picker) {
+    const plan = partPlan(f, options().partLimit);
+    const keys = new Set();
+    for (const [q] of analysed.quarters) keys.add(plan.key(q));
+    multi = keys.size > 1;
+  }
+  if (est >= 52428800 || multi) text += ' This export is large. Checking gzip will shrink the parts, but some computers cannot open .gz files.';
+  $('s58-estimate').textContent = text;
+  const help = $('s58-fill-help');
+  if (f === 'none') { help.hidden = true; help.textContent = ''; } else { help.hidden = false; help.textContent = analysed.fillHelp[f] || ''; }
+  $('s58-preview').disabled = f === 'none';
+}
+
+function pickerSink(h) {
+  return h.createWritable().then((w) => ({
+    write: (t) => w.write(t),
+    close: () => w.close(),
+    abort: () => w.abort(),
+  }));
+}
+
+// No-picker saving (S5.11). A browser such as iOS WebKit may keep only some of the downloads a script starts
+// without a tap, so every file is saved inside the click handler of its own Save button: the object URL is made,
+// the link clicked and removed there. The URL of a saved file is revoked inside the next tap handler (the next Save
+// button, Export, or opening a file), never on a timer, so a browser that reads the URL after the click still has it.
+let heldUrl = null;
+function releaseHeld() { if (heldUrl) { URL.revokeObjectURL(heldUrl); heldUrl = null; } }
+function tapDownload(blob, name) {
+  releaseHeld();
+  heldUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = heldUrl; a.download = name; a.hidden = true;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+function clearSaves() {
+  releaseHeld();
+  clear($('s58-save-list'));
+  $('s58-saves').hidden = true;
+  delete document.body.dataset.s58ready;
+  delete document.body.dataset.s58saved;
+}
+// Shows one Save button for a finished part and waits for its tap. Until then the export is paused (the worker
+// stops at the R3 bound because nothing is acknowledged), so at most one finished part waits in the page.
+function offerSave(blob, name, n) {
+  return new Promise((resolve) => {
+    const li = el('li');
+    const btn = el('button', { type: 'button', id: 's58-save-' + String(n).padStart(3, '0'), 'data-s58file': name }, `Save part ${n} (${name}, ${fmtBytes(blob.size)})`);
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      tapDownload(blob, name);
+      btn.textContent = `Part ${n} saved (${name})`;
+      document.body.dataset.s58saved = String(n);
+      status(`Part ${n} saved. Making the next part.`);
+      setState('exporting');
+      resolve();
+    }, { once: true });
+    li.appendChild(btn);
+    $('s58-save-list').appendChild(li);
+    $('s58-saves').hidden = false;
+    document.body.dataset.s58ready = String(n);
+    status(`Part ${n} is ready (${fmtBytes(blob.size)}). Tap "Save part ${n}" to save it; the next part is made after that.`);
+    setState('part-ready');
+    btn.focus();
+  });
+}
+
+// Blob-parts sink: each part is built (gzip by CompressionStream when chosen), offered on its own Save button and
+// saved by the user's tap before the next one starts. A part over the limit is refused. Plain CSV is also finished
+// at PLAIN_PART_MAX so the page does not hold a whole 6-hour uncompressed part (S5.9 M3 peaked at 369.25 MiB).
+function partsSink(plan, gzip, limit) {
+  const enc = new TextEncoder();
+  let cur = null, n = 0, header = '';
+  const tooBig = () => new PartRefused(`An export part would be larger than ${limit} bytes, so the export was stopped. ${CHROMIUM_HINT}`);
+  const open = (key) => {
+    n++;
+    const p = { key, n, chunks: [], bytes: 0, over: false };
+    if (gzip) {
+      const cs = new CompressionStream('gzip');
+      p.writer = cs.writable.getWriter();
+      const rd = cs.readable.getReader();
+      p.pump = (async () => {
+        for (;;) {
+          const { value, done } = await rd.read();
+          if (done) break;
+          p.bytes += value.length;
+          if (p.bytes > limit) { p.over = true; p.chunks = []; } else p.chunks.push(value);
+        }
+      })();
+    }
+    cur = p;
+  };
+  const cap = gzip ? limit : Math.min(limit, PLAIN_PART_MAX);
+  const put = async (text) => {
+    const u8 = enc.encode(text);
+    if (gzip) await cur.writer.write(u8);
+    else {
+      if (cur.bytes > 0 && cur.bytes + u8.length > cap) {
+        const key = cur.key;
+        await finish();
+        open(key);
+      }
+      cur.bytes += u8.length;
+      if (cur.bytes > limit) cur.over = true; else cur.chunks.push(u8);
+    }
+    if (cur.over) throw tooBig();
+  };
+  const finish = async () => {
+    const p = cur;
+    if (gzip) { await p.writer.close(); await p.pump; }
+    if (p.over || p.bytes > limit) throw tooBig();
+    const blob = new Blob(p.chunks, { type: gzip ? 'application/gzip' : 'text/csv' });
+    p.chunks = null;
+    cur = null;
+    await offerSave(blob, `gt3x_export_part${String(p.n).padStart(3, '0')}.csv${gzip ? '.gz' : ''}`, p.n);
+  };
+  return {
+    parts: () => n,
+    async write(text, q) {
+      if (q === null) { header += text; return; }
+      const key = plan.key(q);
+      if (!cur || cur.key !== key) {
+        if (cur) await finish();
+        open(key);
+        if (header) { const h = header; header = ''; await put(h); }
+      }
+      await put(text);
+    },
+    async close() {
+      if (!cur && header) { open('header'); const h = header; header = ''; await put(h); }
+      if (cur) await finish();
+    },
+    async abort() { if (cur && cur.writer) { try { await cur.writer.abort(); } catch (e) { /* already stopped */ } } cur = null; },
+  };
+}
+
+async function doExport() {
+  if (busy || !analysed) return;
+  const fillMode = chosenFill(), opt = options();
+  const picker = typeof window.showSaveFilePicker === 'function';
+  let sink, plan = null;
+  busy = true;
+  try {
+    if (picker) {
+      let h;
+      try { h = await window.showSaveFilePicker({ suggestedName: 'gt3x_export.csv' }); } catch (e) { status('Export cancelled.'); return; }
+      sink = await pickerSink(h);
+    } else {
+      clearSaves();
+      const gzip = $('s58-gzip').checked;
+      plan = partPlan(fillMode, opt.partLimit);
+      if (!gzip && plan.maxQuarter > opt.partLimit) {
+        status(`A 6-hour part of this file would be larger than ${opt.partLimit} bytes, so the export is refused. ${CHROMIUM_HINT}`);
+        setState('export-refused');
+        return;
+      }
+      sink = partsSink(plan, gzip, opt.partLimit);
+    }
+    setState('exporting');
+    $('s58-sidecar-btn').disabled = true;
+    status('Exporting (pass 2).' + (fillMode === 'none' ? '' : ' Fill: ' + fillMode + '.'));
+    newWorker();
+    let r;
+    try {
+      r = await runWorker({ cmd: 'export', file, fillMode, opt, csv: true }, sink);
+    } catch (e) {
+      try { await sink.abort(); } catch (e2) { /* ignore */ }
+      if (e instanceof PartRefused) { status(e.message); setState('export-refused'); } else { status('The export stopped: ' + (e && e.message ? e.message : String(e))); setState('error'); }
+      return;
+    }
+    if (!r.ok) {
+      try { await sink.abort(); } catch (e2) { /* ignore */ }
+      showError(r.error ? r.error.kind : 'refused', r.error ? r.error.message : 'The parser refused this file.');
+      status('The export stopped: the parser refused this file.');
+      setState('error');
+      return;
+    }
+    try { await sink.close(); } catch (e) {
+      if (e instanceof PartRefused) { status(e.message); setState('export-refused'); } else { status('The export could not be finished: ' + (e && e.message ? e.message : String(e))); setState('error'); }
+      return;
+    }
+    sidecarJson = r.sidecarJson;
+    if (fillMode !== 'none') renderChart(r.chart, analysed.units, true);
+    if (picker) {
+      $('s58-sidecar-btn').disabled = false;
+      status(`Export finished: ${r.rows} rows. Now save the sidecar JSON.`);
+    } else {
+      $('s58-sidecar-btn').disabled = false;
+      status(`Export finished: ${r.rows} rows in ${sink.parts()} part(s). Now save the sidecar JSON.`);
+    }
+    document.body.dataset.s58parts = picker ? '' : String(sink.parts());
+    setState('exported');
+  } finally {
+    busy = false;
+  }
+}
+
+async function saveSidecar() {
+  if (busy || sidecarJson === null) return;
+  if (typeof window.showSaveFilePicker !== 'function') {
+    tapDownload(new Blob([sidecarJson], { type: 'application/json' }), 'gt3x_export_sidecar.json');
+    status('The sidecar JSON was saved.');
+    setState('sidecar-saved');
+    return;
+  }
+  busy = true;
+  try {
+    let h;
+    try { h = await window.showSaveFilePicker({ suggestedName: 'gt3x_export_sidecar.json' }); } catch (e) { status('Saving the sidecar was cancelled.'); return; }
+    const s = await pickerSink(h);
+    await s.write(sidecarJson);
+    await s.close();
+    status('The sidecar JSON was saved.');
+    setState('sidecar-saved');
+  } finally {
+    busy = false;
+  }
+}
+
+async function previewFill() {
+  if (busy || !analysed) return;
+  const fillMode = chosenFill();
+  if (fillMode === 'none') return;
+  busy = true;
+  setState('previewing');
+  status('Reading the file again to show the chosen fill on the chart.');
+  try {
+    newWorker();
+    const r = await runWorker({ cmd: 'export', file, fillMode, opt: options(), csv: false }, null);
+    if (r.ok) { renderChart(r.chart, analysed.units, true); status('The chart now shows the chosen fill (hatched).'); setState('previewed'); }
+    else { status('The fill could not be shown.'); setState('error'); }
+  } catch (e) {
+    status('The fill could not be shown: ' + (e && e.message ? e.message : String(e)));
+    setState('error');
+  } finally {
+    busy = false;
+  }
+}
+
+$('s58-file').addEventListener('change', () => { const f = $('s58-file').files[0]; if (f) openFile(f); });
+for (const id of ['s58-fill-none', 's58-fill-carry', 's58-fill-zero']) {
+  $(id).addEventListener('change', () => {
+    updateEstimate();
+    if (chosenFill() === 'none' && analysed) renderChart(analysed.chart, analysed.units, false);
+  });
+}
+$('s58-export-btn').addEventListener('click', () => { doExport(); });
+$('s58-sidecar-btn').addEventListener('click', () => { saveSidecar(); });
+$('s58-preview').addEventListener('click', () => { previewFill(); });
+})();
+</script>
+</body>
+</html>
